@@ -1,8 +1,8 @@
 # Evaluation results
 
-Run 2026-07-30 01:30 UTC against MSFT 10-K (2024-06-30 → 2025-06-30). AI synthesis: **disabled**.
+Run 2026-07-30 01:32 UTC against MSFT 10-K (2024-06-30 → 2025-06-30). AI synthesis: **disabled**.
 
-**21 / 21 scored questions passed** (3 not measured). Pipeline run time 4.8s.
+**21 / 21 scored questions passed** (3 not measured). Pipeline run time 4.4s.
 
 ## Measures
 
@@ -16,7 +16,6 @@ Run 2026-07-30 01:30 UTC against MSFT 10-K (2024-06-30 → 2025-06-30). AI synth
 | Numerical accuracy — reported changes reproduce deterministic values | 4/4 (100%) |
 | Insufficient-evidence handling — the system declines | 3/3 (100%) |
 | Unsupported-claim rate — material changes lacking both-period evidence or a caveat | 0/7 |
-| Latency — median / slowest scored question | 1 ms / 1 ms |
 
 ## Question-level results
 
@@ -33,7 +32,7 @@ Run 2026-07-30 01:30 UTC against MSFT 10-K (2024-06-30 → 2025-06-30). AI synth
 | q09 | calculated_change | PASS | expected -3.321%, produced -3.321% | 0 |
 | q10 | period_correctness | PASS | both sides duration/annual: True; comparison status=ok | 0 |
 | q11 | period_correctness | PASS | both sides instant/instant: True; comparison status=ok | 0 |
-| q12 | retrieval | PASS | sections=['item_1_business', 'item_1a_risk_factors'] periods=['earlier', 'later'] section_hit=True term_hit=True both_periods=True | 1 |
+| q12 | retrieval | PASS | sections=['item_1_business', 'item_1a_risk_factors'] periods=['earlier', 'later'] section_hit=True term_hit=True both_periods=True | 0 |
 | q13 | retrieval | PASS | sections=['item_1a_risk_factors', 'item_7_mdna'] periods=['earlier', 'later'] section_hit=True term_hit=True both_periods=True | 0 |
 | q14 | retrieval | PASS | sections=['item_7_mdna'] periods=['earlier', 'later'] section_hit=True term_hit=True both_periods=True | 0 |
 | q15 | retrieval | PASS | sections=['item_1a_risk_factors'] periods=['earlier', 'later'] section_hit=True term_hit=True both_periods=True | 0 |
