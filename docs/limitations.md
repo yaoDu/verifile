@@ -22,6 +22,21 @@ One page. Every entry states what breaks, how it shows up, and what the system d
 | 14 | **Ground truth goes stale** when a newer 10-K is filed | Evaluation exact-number questions fail | The runner detects the period mismatch and prints a refresh warning instead of reporting silent failures | Requires a manual refresh |
 | 15 | **Risk diff is heading-level** | A rewritten risk body under an unchanged heading is missed | Item 1A character counts shown alongside; caveat states the limitation explicitly | Real misses are possible |
 
+## The largest untested surface
+
+**The live model path has never run against a real API.** No `ANTHROPIC_API_KEY` was available during the
+build. `research/synthesis.py` and the LLM branch of `research/qa.py` are validated only with a stubbed
+client. That stub does exercise every gate — a fabricated citation, a single-period citation, an invented
+`$91.4 billion`, and "investors should buy the stock" are each asserted to be discarded, and timeout,
+refusal and truncation each resolve to a run-log entry rather than an exception. What is *not* validated
+is how a real model behaves against these prompts: whether it reliably emits schema-conforming JSON,
+whether it respects the "never write a figure" instruction often enough for the numeric gate to be a
+backstop rather than the primary defence, and whether the citation instructions produce usable ids. The
+three `llm_required` evaluation questions are reported as **not measured** for the same reason.
+
+This is why the product was built deterministic-first: the untested layer is the one that can be absent
+without the tool losing its value.
+
 ## Scope limits (not defects — deliberate boundaries)
 
 * Only Items 1, 1A, 7 and 7A are extracted. Financial-statement notes, segment tables, exhibits and

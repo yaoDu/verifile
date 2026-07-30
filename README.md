@@ -349,7 +349,14 @@ Honest and specific. Full list with mitigations in [`docs/limitations.md`](docs/
    including a 10-K filed on the day of the build with no code change — but that is still one filer.)
 8. **10-Q support is structural only.** The comparability checks handle it; the metric catalogue and topic
    probes are tuned for annual filings.
-9. **This is a prototype.** Not institutional-grade, not production-ready, and it does not eliminate
+9. **The live model path has never been exercised against a real API.** No `ANTHROPIC_API_KEY` was
+   available during the build, so `research/synthesis.py` and the LLM branch of `research/qa.py` are
+   validated only by stubbed-model tests. Those tests do cover all four gates — fabricated citations,
+   single-period citations, invented figures and recommendation language are each asserted to be
+   discarded — plus timeout, refusal and truncation handling. But the prompts themselves have not been
+   tuned against real model output, and the three `llm_required` evaluation questions are reported as
+   *not measured* for the same reason. This is the largest untested surface in the project.
+10. **This is a prototype.** Not institutional-grade, not production-ready, and it does not eliminate
    hallucination — it constrains, checks and labels model output, and reports what it could not verify.
 
 ---
