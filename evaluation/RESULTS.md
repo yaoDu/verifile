@@ -1,8 +1,8 @@
 # Evaluation results
 
-Run 2026-07-30 01:48 UTC against MSFT 10-K (2024-06-30 → 2025-06-30). AI synthesis: **disabled**.
+Run 2026-07-30 02:11 UTC against MSFT 10-K (2024-06-30 → 2025-06-30). AI synthesis: **disabled**.
 
-**21 / 21 scored questions passed** (3 not measured). Pipeline run time 4.2s.
+**21 / 21 scored questions passed** (3 not measured). Pipeline run time 4.9s.
 
 ## Measures
 
@@ -44,7 +44,7 @@ Run 2026-07-30 01:48 UTC against MSFT 10-K (2024-06-30 → 2025-06-30). AI synth
 | q20 | insufficient_evidence | not measured | not measured — requires a configured model | 0 |
 | q21 | insufficient_evidence | not measured | not measured — requires a configured model | 0 |
 | q22 | insufficient_evidence | not measured | not measured — requires a configured model | 0 |
-| q23 | insufficient_evidence | PASS | answer_type=insufficient_evidence, 6 passages retrieved | 0 |
+| q23 | insufficient_evidence | PASS | answer_type=insufficient_evidence, 6 passages retrieved | 1 |
 | q24 | insufficient_evidence | PASS | answer_type=insufficient_evidence, 6 passages retrieved | 0 |
 
 ## Failures

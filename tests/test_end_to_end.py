@@ -193,3 +193,29 @@ def test_missing_filing_document_degrades_gracefully(
     assert any("Could not download the earlier filing" in w for w in r.warnings)
     md = build_markdown_brief(r)
     assert "## 2. Verified financial changes" in md
+
+
+def test_failed_document_fetch_still_records_the_extraction_strategy(
+    submissions_json, companyfacts_json, later_html
+):
+    """A period whose document could not be fetched must still appear in the
+    extraction-strategy provenance, or the UI and brief silently omit it."""
+    from tests.conftest import FakeSecClient
+
+    class Partial(FakeSecClient):
+        def filing_document(self, cik, accession, document, refresh=False):
+            if accession == "0000950170-24-087843":
+                raise SecError("simulated 503 from SEC")
+            return super().filing_document(cik, accession, document, refresh)
+
+    client = Partial(submissions_json, companyfacts_json, {"0000950170-25-100235": later_html})
+    r = run_analysis("MSFT", "10-K", client=client).result
+    assert r.section_strategy == {"earlier": "none", "later": "upper_case"}
+    md = build_markdown_brief(r)
+    assert "earlier filing `none`" in md
+
+
+def test_extraction_strategy_is_recorded_for_both_periods(bundle):
+    r = bundle.result
+    assert set(r.section_strategy) == {"earlier", "later"}
+    assert all(v == "upper_case" for v in r.section_strategy.values())

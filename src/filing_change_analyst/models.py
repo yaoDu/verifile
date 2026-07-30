@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 # --------------------------------------------------------------------------- #
 # Filings
@@ -223,11 +223,6 @@ class FilingSection(BaseModel):
     text: str
     char_count: int = 0
     extraction_note: str = ""
-
-    @field_validator("char_count", mode="before")
-    @classmethod
-    def _default_count(cls, v, info):  # type: ignore[no-untyped-def]
-        return v
 
 
 class EvidenceChunk(BaseModel):

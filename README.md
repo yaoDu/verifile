@@ -116,12 +116,159 @@ streamlit run app.py
 Then press **Compare latest filings**. The default is MSFT 10-K year-over-year.
 
 ```bash
-pytest                              # 142 tests, fully offline, ~1.5s
+pytest                              # 151 tests, fully offline, ~2s
 ruff check src tests app.py         # lint
 python evaluation/run_evaluation.py # 22 questions against the pinned MSFT FY2025/FY2024 pair
 python evaluation/run_evaluation.py --latest-pair   # score against today's latest pair instead
 python evaluation/run_coverage_check.py             # 11-filer coverage sweep -> evaluation/COVERAGE.md
 ```
+
+### Worked examples
+
+Every output below is verbatim from a real run against the pinned MSFT FY2025/FY2024 pair, with
+**no API key configured**.
+
+#### 1. The comparison you get from one click
+
+| Metric | Previous period | Latest period | % / pp change |
+|---|---:|---:|---:|
+| Revenue | $245.12B | $281.72B | +14.93% |
+| Gross margin | 69.76% | 68.82% | **−0.94 pp** |
+| Capital expenditure | $44.48B | $64.55B | **+45.13%** |
+| Estimated free cash flow | $74.07B | $71.61B | **−3.32%** |
+
+Note the units: level metrics get a percentage, ratio metrics get percentage **points**. Conflating
+those is a classic quiet error, so they are computed and rendered by different code paths.
+
+#### 2. Every number is inspectable down to the XBRL fact
+
+Expanding *Source and provenance — Capital expenditure* in the app shows exactly what was read:
+
+```json
+{
+  "concept":        "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+  "start":          "2024-07-01",
+  "end":            "2025-06-30",
+  "duration_days":  364,
+  "duration_class": "annual",
+  "unit":           "USD",
+  "form":           "10-K",
+  "accession":      "0000950170-25-100235",
+  "filed":          "2025-07-30",
+  "selection_rule": "filing_scoped_exact_period"
+}
+```
+
+`selection_rule` is the point: the value shown is the one tagged *in that filing*, not a value
+assembled from whichever filing happened to report it most recently.
+
+#### 3. Incompatible periods are refused, not warned about
+
+Pick the FY2023 and FY2025 10-Ks in *Choose a specific filing pair* and the comparison is blocked
+before any arithmetic runs:
+
+```
+comparability_ok: False
+notes: ["Annual periods are 24 months apart (expected ~12).
+         This is not a like-for-like year-over-year comparison."]
+```
+
+Every metric row then reports `BLOCKED — incompatible periods` and the brief carries a blocking banner.
+
+#### 4. A question it cannot answer
+
+```
+> What is the chief executive officer's favourite colour?
+
+Insufficient evidence: no passage in the extracted sections of either filing matched this
+question strongly enough to answer it (best BM25 score 14.5, query-term coverage 26%).
+Terms not found anywhere in the extracted sections: officer's, favourite, colour.
+Try wording the question with terminology the filing itself would use.
+```
+
+It reports the measurements behind the refusal, so you can tell a genuine gap from a phrasing problem.
+
+#### 5. A question answered deterministically, with no model at all
+
+"What changed in the risk factors?" is a set difference, not a passage — so it is served straight from
+the Item 1A heading diff rather than from retrieval:
+
+```
+> Which risks appear new or more prominent?
+
+31 risk-factor headings in the latest filing versus 34 in the previous one: 2 new,
+5 no longer present, 29 retained (extraction confidence: high).
+Item 1A length 73,473 → 68,711 characters.
+
+New or substantially reworded:
+  · Competition laws and new market regulation:
+  · Environmental, Social, and Governance:
+
+Present previously, not matched now:
+  · If our goodwill or amortizable intangible assets become impaired, we may be
+    required to record a significant charge to earnings.
+  · Government enforcement under competition laws and new market regulation may
+    limit how we design and market our products.
+  … 3 more
+```
+
+#### 6. Driving it from Python instead of the UI
+
+```python
+from filing_change_analyst.pipeline import (
+    apply_ai_synthesis, available_filings, pair_from_filings, run_analysis,
+)
+from filing_change_analyst.research.brief import build_markdown_brief
+from filing_change_analyst.research.qa import answer_question
+
+# Pin the pair by accession when you want reproducible output. Calling
+# run_analysis("MSFT", "10-K") with no pair always takes the two *most recent*
+# filings instead — correct for an analyst, but the numbers move when the
+# company files, so scripts and tests should pin.
+by_accession = {f.accession: f for f in available_filings("MSFT", "10-K")}
+pair = pair_from_filings(
+    by_accession["0000950170-24-087843"],   # FY2024
+    by_accession["0000950170-25-100235"],   # FY2025
+)
+
+bundle = run_analysis("MSFT", "10-K", pair=pair)   # deterministic, complete on its own
+bundle = apply_ai_synthesis(bundle)                # optional; a no-op without a key
+
+result = bundle.result
+capex = result.comparison_by_id("capex")
+print(round(capex.percent_change, 2))              # 45.13
+print(capex.later.provenance[0].accession)         # 0000950170-25-100235
+print(capex.later.provenance[0].selection_rule)    # filing_scoped_exact_period
+
+qa = answer_question(
+    "What did management say about capital expenditures and datacenters?",
+    bundle.index, result.pair, result.comparisons,
+    risk_delta=result.risk_delta,
+)
+print(qa.answer_type)                              # llm_unavailable, with no API key
+for e in qa.evidence:
+    print(e.chunk.section_label, e.chunk.accession, e.chunk.source_url)
+
+open("brief.md", "w").write(build_markdown_brief(result))
+```
+
+#### 7. A filer where it is weakest
+
+```bash
+# P&G's 10-K carries no item numbers in its body, so extraction falls back to
+# anchoring on bare section titles — and the app says so, at low confidence.
+streamlit run app.py     # then enter PG
+```
+
+```
+Section headings located by — earlier: title_only (low confidence) · later: title_only (low confidence)
+⚠️ The title_only strategy anchors on bare section titles because the filing body carries no
+   item numbers; a cross-reference to a section title can be mistaken for the section itself,
+   so treat these excerpts with extra care.
+```
+
+It still produces 19/21 metrics, 446 evidence chunks and 5 material changes — and it tells you how much
+to trust the text.
 
 ### Running without an LLM
 
@@ -290,7 +437,7 @@ filing contains and which made well-phrased questions look unanswerable. That se
 
 ## Testing
 
-142 tests, all offline, ~1.5 s. Fixtures are trimmed real SEC captures (submissions and companyfacts for
+151 tests, all offline, ~2 s. Fixtures are trimmed real SEC captures (submissions and companyfacts for
 CIK 0000789019) plus two synthetic miniature 10-Ks. No test touches the network or needs an API key.
 
 | Area | Covers |
@@ -301,6 +448,7 @@ CIK 0000789019) plus two synthetic miniature 10-Ks. No test touches the network 
 | `test_citations.py` | accession validation, EDGAR URL construction, fabricated-id rejection, both-period requirement, no page numbers |
 | `test_llm_guardrails.py` | schema validation, numeric grounding, recommendation detection, prompt-injection redaction, stubbed-model gates, failure/refusal handling, key never logged |
 | `test_qa_gating.py` | content-term extraction, decline gate on both signals, risk-question routing, no-LLM behaviour |
+| `test_rendering_safety.py` | AST check that no module enables raw-HTML rendering, entity-decoding premise, hostile excerpt survives the pipeline as inert text |
 | `test_filing_discovery.py` | older-submissions-shard fallback for high-volume filers, accession dedupe, shard-fetch failure, registrants with no filing history |
 | `test_end_to_end.py` | full pipeline offline, brief structure and provenance, reproducibility, incompatible pairs, a simulated SEC outage |
 
@@ -312,7 +460,9 @@ CIK 0000789019) plus two synthetic miniature 10-Ks. No test touches the network 
   defaulted into source. The API key is never written to a log or run record (there is a test for it).
 * SEC calls are identified, throttled below the fair-access ceiling, given a 30-second timeout and bounded
   retries with exponential backoff, and fall back to a stale cache entry rather than failing the demo.
-* Filing HTML is stripped to text on ingest and never re-rendered as markup.
+* Filing HTML is stripped to text on ingest and never re-rendered as markup. Streamlit's raw-HTML
+  path is not used anywhere, and an AST-level test fails the build if it is reintroduced — entity
+  decoding means stripped text can still contain a literal `<img …>`, so escaping is load-bearing.
 * Filing text and user questions pass through an injection-marker redactor before entering any prompt, and
   evidence is wrapped in delimited blocks with an explicit untrusted-data notice.
 * Structured model output is validated by Pydantic, then by citation, numeric-grounding and

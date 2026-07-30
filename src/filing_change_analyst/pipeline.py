@@ -94,6 +94,7 @@ def run_analysis(
                     "that period is unavailable; the financial comparison is unaffected."
                 )
                 sections[period] = {}
+                section_strategy[period] = "none"
                 risk_meta[period] = ([], "low", 0)
                 continue
 

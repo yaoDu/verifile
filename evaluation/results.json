@@ -1,10 +1,10 @@
 {
-  "run_at": "2026-07-30T01:48:50.437664+00:00",
+  "run_at": "2026-07-30T02:11:48.137737+00:00",
   "ticker": "MSFT",
   "later_period_end": "2025-06-30",
   "earlier_period_end": "2024-06-30",
   "llm_enabled": false,
-  "pipeline_seconds": 4.18,
+  "pipeline_seconds": 4.86,
   "cases": [
     {
       "id": "q01",
@@ -269,7 +269,7 @@
       "question": "What is the market share of the company's browser in Argentina?",
       "passed": true,
       "detail": "answer_type=insufficient_evidence, 6 passages retrieved",
-      "latency_ms": 0,
+      "latency_ms": 1,
       "measures": {
         "insufficient_evidence_handling": true
       }

@@ -10,7 +10,7 @@
 | Accession | `0000950170-24-087843` | `0000950170-25-100235` |
 | SEC source | [filing](https://www.sec.gov/Archives/edgar/data/789019/000095017024087843/msft-20240630.htm) | [filing](https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm) |
 
-_Generated 2026-07-30 01:48 UTC by the Evidence-First Filing Change Analyst. AI synthesis: **disabled**. This is a research aid, not investment advice._
+_Generated 2026-07-30 02:11 UTC by the Evidence-First Filing Change Analyst. AI synthesis: **disabled**. This is a research aid, not investment advice._
 
 ## 1. Executive change summary
 

@@ -105,7 +105,7 @@ def chunk_section(
 
     heading_set = {h.strip() for h in headings}
     for para in _paragraphs(section.text):
-        if para.strip() in heading_set or (len(para) < 320 and para.strip() in heading_set):
+        if para.strip() in heading_set:
             flush()
             current_heading = para.strip()
             continue

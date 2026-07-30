@@ -130,13 +130,23 @@ def provenance_expander(c: MetricComparison) -> None:
 
 
 def evidence_card(chunk: EvidenceChunk, score: float | None = None) -> None:
+    """Render one excerpt with its provenance.
+
+    The excerpt is rendered through Streamlit's default *escaping* Markdown path
+    and never with ``unsafe_allow_html``. This matters more than it looks:
+    ``html_to_text`` strips markup, but BeautifulSoup's ``get_text`` also
+    *decodes HTML entities*, so a filing that legitimately writes ``&lt;img
+    src=x onerror=...&gt;`` — a 10-K quoting markup, or using ``&lt;`` in a
+    formula — yields a raw ``<img …>`` in the extracted text. Passing that
+    through ``unsafe_allow_html=True`` would render filing-controlled HTML in
+    the app, which is exactly what this project promises not to do.
+    """
     score_s = f" · BM25 score `{score:.2f}`" if score is not None else ""
-    st.markdown(
-        f"> {short_excerpt(chunk.text, 700)}\n\n"
-        f"<small>— **{chunk.form}** period ending `{chunk.report_date}` · "
+    st.markdown(f"> {short_excerpt(chunk.text, 700)}")
+    st.caption(
+        f"— **{chunk.form}** period ending `{chunk.report_date}` · "
         f"{chunk.section_label} · accession `{chunk.accession}` · id `{chunk.chunk_id}`"
-        f"{score_s} · [open filing]({chunk.source_url})</small>",
-        unsafe_allow_html=True,
+        f"{score_s} · [open filing]({chunk.source_url})"
     )
 
 

@@ -127,7 +127,10 @@ class SecClient:
                     )
                 else:
                     raise SecError(f"SEC returned HTTP {resp.status_code} for {url}")
-            time.sleep(min(2.0**attempt * 0.5, 8.0))
+            if attempt < max(1, self.settings.http_max_retries):
+                # Back off between attempts only. Sleeping after the final one
+                # just delays the stale-cache fallback by up to 8 seconds.
+                time.sleep(min(2.0**attempt * 0.5, 8.0))
 
         # Fall back to a stale cache entry rather than failing the whole demo.
         stale = self.cache.get(url, max_age_s=None)
