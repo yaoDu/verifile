@@ -1,0 +1,238 @@
+{
+  "target": {
+    "ticker": "MSFT",
+    "form": "10-K",
+    "later_period_end": "2025-06-30",
+    "earlier_period_end": "2024-06-30",
+    "later_accession": "0000950170-25-100235",
+    "earlier_accession": "0000950170-24-087843"
+  },
+  "notes": [
+    "Ground-truth values were read by hand from Microsoft's FY2025 Form 10-K (accession 0000950170-25-100235) and the FY2024 Form 10-K (accession 0000950170-24-087843).",
+    "Percentage-change and percentage-point expectations were computed by hand from those two filings, not copied from this tool's output.",
+    "Questions marked llm_required are only scored when ANTHROPIC_API_KEY is set; otherwise they are reported as not measured.",
+    "The four insufficient-evidence questions are split deliberately: q19/q23/q24 are vocabulary-level gaps a lexical gate can detect without a model, while q20/q21/q22 are fact-level gaps whose words all appear in the filings and which therefore require the model to decline correctly."
+  ],
+  "questions": [
+    {
+      "id": "q01",
+      "type": "exact_number",
+      "question": "What was total revenue in the latest fiscal year?",
+      "metric_id": "revenue",
+      "period": "later",
+      "expected_value": 281724000000,
+      "tolerance_pct": 0.01,
+      "source": "FY2025 10-K income statement: revenue $281,724 million"
+    },
+    {
+      "id": "q02",
+      "type": "exact_number",
+      "question": "What was capital expenditure (additions to property and equipment) in the latest fiscal year?",
+      "metric_id": "capex",
+      "period": "later",
+      "expected_value": 64551000000,
+      "tolerance_pct": 0.01,
+      "source": "FY2025 10-K cash flow statement: additions to property and equipment $64,551 million"
+    },
+    {
+      "id": "q03",
+      "type": "exact_number",
+      "question": "What was net income in the prior fiscal year?",
+      "metric_id": "net_income",
+      "period": "earlier",
+      "expected_value": 88136000000,
+      "tolerance_pct": 0.01,
+      "source": "FY2024 10-K income statement: net income $88,136 million"
+    },
+    {
+      "id": "q04",
+      "type": "exact_number",
+      "question": "What was diluted earnings per share in the latest fiscal year?",
+      "metric_id": "diluted_eps",
+      "period": "later",
+      "expected_value": 13.64,
+      "tolerance_pct": 0.01,
+      "source": "FY2025 10-K income statement: diluted EPS $13.64"
+    },
+    {
+      "id": "q05",
+      "type": "exact_number",
+      "question": "What was operating cash flow in the latest fiscal year?",
+      "metric_id": "operating_cash_flow",
+      "period": "later",
+      "expected_value": 136162000000,
+      "tolerance_pct": 0.01,
+      "source": "FY2025 10-K cash flow statement: net cash from operations $136,162 million"
+    },
+    {
+      "id": "q06",
+      "type": "calculated_change",
+      "question": "By what percentage did revenue grow year over year?",
+      "metric_id": "revenue",
+      "expected_percent_change": 14.932,
+      "tolerance_abs": 0.05,
+      "source": "(281724 - 245122) / 245122 = 14.93%"
+    },
+    {
+      "id": "q07",
+      "type": "calculated_change",
+      "question": "By what percentage did capital expenditure change year over year?",
+      "metric_id": "capex",
+      "expected_percent_change": 45.135,
+      "tolerance_abs": 0.05,
+      "source": "(64551 - 44477) / 44477 = 45.13%"
+    },
+    {
+      "id": "q08",
+      "type": "calculated_change",
+      "question": "How many percentage points did gross margin move year over year?",
+      "metric_id": "gross_margin",
+      "expected_point_change": -0.939,
+      "tolerance_abs": 0.05,
+      "source": "193893/281724 = 68.82% vs 171008/245122 = 69.76%; -0.94pp"
+    },
+    {
+      "id": "q09",
+      "type": "calculated_change",
+      "question": "Did estimated free cash flow rise or fall year over year, and by how much?",
+      "metric_id": "free_cash_flow",
+      "expected_percent_change": -3.321,
+      "tolerance_abs": 0.05,
+      "source": "(136162-64551)=71611 vs (118548-44477)=74071; -3.32%"
+    },
+    {
+      "id": "q10",
+      "type": "period_correctness",
+      "question": "Is the revenue comparison made between two annual periods?",
+      "metric_id": "revenue",
+      "expected_period_type": "duration",
+      "expected_duration_class": "annual",
+      "source": "Both facts must be ~365-day durations one year apart"
+    },
+    {
+      "id": "q11",
+      "type": "period_correctness",
+      "question": "Is the cash balance comparison made between two balance-sheet instants?",
+      "metric_id": "cash_and_equivalents",
+      "expected_period_type": "instant",
+      "expected_duration_class": "instant",
+      "source": "Cash is an instant fact; it must never be compared as a duration"
+    },
+    {
+      "id": "q12",
+      "type": "retrieval",
+      "question": "How did management describe competition in the technology sector?",
+      "expected_sections": [
+        "item_1a_risk_factors",
+        "item_1_business"
+      ],
+      "expected_terms": [
+        "competition"
+      ],
+      "require_both_periods": true
+    },
+    {
+      "id": "q13",
+      "type": "retrieval",
+      "question": "What did management say about capital expenditures and datacenters?",
+      "expected_sections": [
+        "item_7_mdna",
+        "item_1_business",
+        "item_1a_risk_factors"
+      ],
+      "expected_terms": [
+        "capital expenditures"
+      ],
+      "require_both_periods": true
+    },
+    {
+      "id": "q14",
+      "type": "retrieval",
+      "question": "What factors did management identify as affecting gross margin?",
+      "expected_sections": [
+        "item_7_mdna"
+      ],
+      "expected_terms": [
+        "gross margin"
+      ],
+      "require_both_periods": true
+    },
+    {
+      "id": "q15",
+      "type": "retrieval",
+      "question": "Which risks relate to cybersecurity and threat actors?",
+      "expected_sections": [
+        "item_1a_risk_factors"
+      ],
+      "expected_terms": [
+        "cyberattack",
+        "security"
+      ],
+      "require_both_periods": true
+    },
+    {
+      "id": "q16",
+      "type": "cross_period_change",
+      "question": "What changed in the discussion of capital expenditure between the two filings?",
+      "expected_topic_id": "capex_infrastructure",
+      "expected_metric_id": "capex",
+      "expected_metric_direction": "up",
+      "require_both_periods": true
+    },
+    {
+      "id": "q17",
+      "type": "cross_period_change",
+      "question": "Did the risk-factor section change between the two filings?",
+      "check": "risk_delta_nonempty",
+      "source": "The FY2025 10-K reorganised several risk headings relative to FY2024"
+    },
+    {
+      "id": "q18",
+      "type": "cross_period_change",
+      "question": "Did capital intensity (capex as a share of revenue) rise or fall?",
+      "expected_topic_id": "capex_infrastructure",
+      "expected_metric_id": "capex_intensity",
+      "expected_metric_direction": "up",
+      "require_both_periods": true
+    },
+    {
+      "id": "q19",
+      "type": "insufficient_evidence",
+      "question": "What is the chief executive officer's favourite colour?",
+      "reason": "Not disclosed anywhere in a 10-K. The distinctive query terms ('favourite', 'colour') appear nowhere in the corpus, so the deterministic query-coverage gate must decline without a model."
+    },
+    {
+      "id": "q20",
+      "type": "insufficient_evidence",
+      "question": "What was the closing share price on the last trading day of the fiscal year?",
+      "reason": "Item 5 market information is outside the indexed sections, but every word of the question ('share', 'price', 'trading', 'fiscal year') does appear in the filings, so lexical retrieval cannot detect the gap (measured query-term coverage 0.77). Only a model reading the evidence can decline correctly. This is a deliberate negative control for the documented limits of the deterministic gate.",
+      "llm_required": true
+    },
+    {
+      "id": "q21",
+      "type": "insufficient_evidence",
+      "question": "What percentage of capital expenditure was directly attributable to AI infrastructure?",
+      "reason": "The filing discusses AI and capex but never attributes a share of capex to AI. Retrieval will match strongly, so only a model that reads the evidence can decline correctly.",
+      "llm_required": true
+    },
+    {
+      "id": "q22",
+      "type": "insufficient_evidence",
+      "question": "How much revenue did the company earn from Copilot subscriptions?",
+      "reason": "Copilot is discussed but never disclosed as a separate revenue line.",
+      "llm_required": true
+    },
+    {
+      "id": "q23",
+      "type": "insufficient_evidence",
+      "question": "What is the market share of the company's browser in Argentina?",
+      "reason": "Argentina is never mentioned in either filing; the deterministic query-coverage gate must decline."
+    },
+    {
+      "id": "q24",
+      "type": "insufficient_evidence",
+      "question": "What was the aggregate remuneration of the company's veterinary staff?",
+      "reason": "'Remuneration' and 'veterinary' appear nowhere in the extracted sections; the deterministic query-coverage gate must decline."
+    }
+  ]
+}

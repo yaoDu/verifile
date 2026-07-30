@@ -1,0 +1,289 @@
+{
+  "run_at": "2026-07-30T01:30:17.825673+00:00",
+  "ticker": "MSFT",
+  "later_period_end": "2025-06-30",
+  "earlier_period_end": "2024-06-30",
+  "llm_enabled": false,
+  "pipeline_seconds": 4.81,
+  "cases": [
+    {
+      "id": "q01",
+      "type": "exact_number",
+      "question": "What was total revenue in the latest fiscal year?",
+      "passed": true,
+      "detail": "expected 281,724,000,000.00, produced 281,724,000,000.00",
+      "latency_ms": 0,
+      "measures": {
+        "metric_correctness": true,
+        "citation_validity": true
+      }
+    },
+    {
+      "id": "q02",
+      "type": "exact_number",
+      "question": "What was capital expenditure (additions to property and equipment) in the latest fiscal year?",
+      "passed": true,
+      "detail": "expected 64,551,000,000.00, produced 64,551,000,000.00",
+      "latency_ms": 0,
+      "measures": {
+        "metric_correctness": true,
+        "citation_validity": true
+      }
+    },
+    {
+      "id": "q03",
+      "type": "exact_number",
+      "question": "What was net income in the prior fiscal year?",
+      "passed": true,
+      "detail": "expected 88,136,000,000.00, produced 88,136,000,000.00",
+      "latency_ms": 0,
+      "measures": {
+        "metric_correctness": true,
+        "citation_validity": true
+      }
+    },
+    {
+      "id": "q04",
+      "type": "exact_number",
+      "question": "What was diluted earnings per share in the latest fiscal year?",
+      "passed": true,
+      "detail": "expected 13.64, produced 13.64",
+      "latency_ms": 0,
+      "measures": {
+        "metric_correctness": true,
+        "citation_validity": true
+      }
+    },
+    {
+      "id": "q05",
+      "type": "exact_number",
+      "question": "What was operating cash flow in the latest fiscal year?",
+      "passed": true,
+      "detail": "expected 136,162,000,000.00, produced 136,162,000,000.00",
+      "latency_ms": 0,
+      "measures": {
+        "metric_correctness": true,
+        "citation_validity": true
+      }
+    },
+    {
+      "id": "q06",
+      "type": "calculated_change",
+      "question": "By what percentage did revenue grow year over year?",
+      "passed": true,
+      "detail": "expected +14.932%, produced +14.932%",
+      "latency_ms": 0,
+      "measures": {
+        "metric_correctness": true,
+        "numerical_accuracy": true
+      }
+    },
+    {
+      "id": "q07",
+      "type": "calculated_change",
+      "question": "By what percentage did capital expenditure change year over year?",
+      "passed": true,
+      "detail": "expected +45.135%, produced +45.133%",
+      "latency_ms": 0,
+      "measures": {
+        "metric_correctness": true,
+        "numerical_accuracy": true
+      }
+    },
+    {
+      "id": "q08",
+      "type": "calculated_change",
+      "question": "How many percentage points did gross margin move year over year?",
+      "passed": true,
+      "detail": "expected -0.939pp, produced -0.941pp",
+      "latency_ms": 0,
+      "measures": {
+        "metric_correctness": true,
+        "numerical_accuracy": true
+      }
+    },
+    {
+      "id": "q09",
+      "type": "calculated_change",
+      "question": "Did estimated free cash flow rise or fall year over year, and by how much?",
+      "passed": true,
+      "detail": "expected -3.321%, produced -3.321%",
+      "latency_ms": 0,
+      "measures": {
+        "metric_correctness": true,
+        "numerical_accuracy": true
+      }
+    },
+    {
+      "id": "q10",
+      "type": "period_correctness",
+      "question": "Is the revenue comparison made between two annual periods?",
+      "passed": true,
+      "detail": "both sides duration/annual: True; comparison status=ok",
+      "latency_ms": 0,
+      "measures": {
+        "period_correctness": true
+      }
+    },
+    {
+      "id": "q11",
+      "type": "period_correctness",
+      "question": "Is the cash balance comparison made between two balance-sheet instants?",
+      "passed": true,
+      "detail": "both sides instant/instant: True; comparison status=ok",
+      "latency_ms": 0,
+      "measures": {
+        "period_correctness": true
+      }
+    },
+    {
+      "id": "q12",
+      "type": "retrieval",
+      "question": "How did management describe competition in the technology sector?",
+      "passed": true,
+      "detail": "sections=['item_1_business', 'item_1a_risk_factors'] periods=['earlier', 'later'] section_hit=True term_hit=True both_periods=True",
+      "latency_ms": 1,
+      "measures": {
+        "retrieval_success": true,
+        "citation_validity": true,
+        "citation_support": true
+      }
+    },
+    {
+      "id": "q13",
+      "type": "retrieval",
+      "question": "What did management say about capital expenditures and datacenters?",
+      "passed": true,
+      "detail": "sections=['item_1a_risk_factors', 'item_7_mdna'] periods=['earlier', 'later'] section_hit=True term_hit=True both_periods=True",
+      "latency_ms": 0,
+      "measures": {
+        "retrieval_success": true,
+        "citation_validity": true,
+        "citation_support": true
+      }
+    },
+    {
+      "id": "q14",
+      "type": "retrieval",
+      "question": "What factors did management identify as affecting gross margin?",
+      "passed": true,
+      "detail": "sections=['item_7_mdna'] periods=['earlier', 'later'] section_hit=True term_hit=True both_periods=True",
+      "latency_ms": 0,
+      "measures": {
+        "retrieval_success": true,
+        "citation_validity": true,
+        "citation_support": true
+      }
+    },
+    {
+      "id": "q15",
+      "type": "retrieval",
+      "question": "Which risks relate to cybersecurity and threat actors?",
+      "passed": true,
+      "detail": "sections=['item_1a_risk_factors'] periods=['earlier', 'later'] section_hit=True term_hit=True both_periods=True",
+      "latency_ms": 0,
+      "measures": {
+        "retrieval_success": true,
+        "citation_validity": true,
+        "citation_support": true
+      }
+    },
+    {
+      "id": "q16",
+      "type": "cross_period_change",
+      "question": "What changed in the discussion of capital expenditure between the two filings?",
+      "passed": true,
+      "detail": "both_periods=True metric_direction_ok=True surfaced_as_change=True",
+      "latency_ms": 0,
+      "measures": {
+        "retrieval_success": true,
+        "metric_correctness": true,
+        "citation_validity": true
+      }
+    },
+    {
+      "id": "q17",
+      "type": "cross_period_change",
+      "question": "Did the risk-factor section change between the two filings?",
+      "passed": true,
+      "detail": "+2 / -5 headings",
+      "latency_ms": 0,
+      "measures": {
+        "retrieval_success": true
+      }
+    },
+    {
+      "id": "q18",
+      "type": "cross_period_change",
+      "question": "Did capital intensity (capex as a share of revenue) rise or fall?",
+      "passed": true,
+      "detail": "both_periods=True metric_direction_ok=True surfaced_as_change=True",
+      "latency_ms": 0,
+      "measures": {
+        "retrieval_success": true,
+        "metric_correctness": true,
+        "citation_validity": true
+      }
+    },
+    {
+      "id": "q19",
+      "type": "insufficient_evidence",
+      "question": "What is the chief executive officer's favourite colour?",
+      "passed": true,
+      "detail": "answer_type=insufficient_evidence, 6 passages retrieved",
+      "latency_ms": 0,
+      "measures": {
+        "insufficient_evidence_handling": true
+      }
+    },
+    {
+      "id": "q20",
+      "type": "insufficient_evidence",
+      "question": "What was the closing share price on the last trading day of the fiscal year?",
+      "passed": null,
+      "detail": "not measured \u2014 requires a configured model",
+      "latency_ms": 0,
+      "measures": {}
+    },
+    {
+      "id": "q21",
+      "type": "insufficient_evidence",
+      "question": "What percentage of capital expenditure was directly attributable to AI infrastructure?",
+      "passed": null,
+      "detail": "not measured \u2014 requires a configured model",
+      "latency_ms": 0,
+      "measures": {}
+    },
+    {
+      "id": "q22",
+      "type": "insufficient_evidence",
+      "question": "How much revenue did the company earn from Copilot subscriptions?",
+      "passed": null,
+      "detail": "not measured \u2014 requires a configured model",
+      "latency_ms": 0,
+      "measures": {}
+    },
+    {
+      "id": "q23",
+      "type": "insufficient_evidence",
+      "question": "What is the market share of the company's browser in Argentina?",
+      "passed": true,
+      "detail": "answer_type=insufficient_evidence, 6 passages retrieved",
+      "latency_ms": 0,
+      "measures": {
+        "insufficient_evidence_handling": true
+      }
+    },
+    {
+      "id": "q24",
+      "type": "insufficient_evidence",
+      "question": "What was the aggregate remuneration of the company's veterinary staff?",
+      "passed": true,
+      "detail": "answer_type=insufficient_evidence, 6 passages retrieved",
+      "latency_ms": 0,
+      "measures": {
+        "insufficient_evidence_handling": true
+      }
+    }
+  ]
+}
