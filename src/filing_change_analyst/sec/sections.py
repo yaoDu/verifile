@@ -4,11 +4,15 @@
 numbers. It anchors evidence on *section names* plus the SEC accession number
 and document URL, which are stable and verifiable.
 
-Section detection uses the fact that EDGAR filers render the real item headings
-in upper case (``ITEM 1A. RISK FACTORS``) while the table of contents and the
-running page headers use title case (``Item 1A.``). That single distinction
-removes almost all of the usual table-of-contents false positives; where it
-fails we report low extraction confidence instead of guessing.
+Filers do not agree on how they mark up item headings, so extraction tries three
+anchoring conventions in order of precision and reports which one worked. This was
+built after measuring ten large filers: MSFT uses upper case, Workiva-generated
+filings (AAPL, NVDA, BRK-B) use title case, and P&G omits item numbers from the
+body entirely. Anchoring on upper case alone silently produced *zero* sections for
+four of the ten.
+
+Where every strategy fails, the caller is told extraction failed rather than being
+handed an empty result that looks like "this filing has no risk factors".
 """
 
 from __future__ import annotations
@@ -37,8 +41,42 @@ _NOISE_LINE = re.compile(
     re.VERBOSE,
 )
 
-# Real item headings, as rendered in upper case in the body of the filing.
-_ITEM_ANCHOR = re.compile(r"(?m)^ITEM\s+(\d{1,2}[A-C]?)\s*[\.\:\-–—]")
+# Anchoring strategies, tried in order of precision. Filers do not agree on how
+# they render item headings, and measuring ten large filers showed three distinct
+# conventions:
+#
+#   upper_case  MSFT-style — "ITEM 1A. RISK FACTORS"
+#   mixed_case  Workiva-generated (AAPL, NVDA, BRK-B) — "Item 1A. Risk Factors"
+#   title_only  P&G-style — no item prefix in the body at all, just "Risk Factors"
+#
+# The table of contents is not a problem for the first two: filers put the item
+# number and the item title in separate table cells, so the flattened TOC line is
+# a bare "Item 1A." which `_NOISE_LINE` already removes. `title_only` has no such
+# protection and is reported at low confidence.
+_ITEM_ANCHOR_UPPER = re.compile(r"(?m)^ITEM\s+(\d{1,2}[A-C]?)\s*[\.\:\-–—]")
+_ITEM_ANCHOR_ANY_CASE = re.compile(r"(?mi)^ITEM\s+(\d{1,2}[A-C]?)\s*[\.\:\-–—]")
+
+# Bare section titles, used only when no item-prefixed anchor exists anywhere.
+# Each maps to the item number it stands in for.
+_TITLE_ANCHORS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("1", re.compile(r"(?mi)^BUSINESS\.?$")),
+    ("1A", re.compile(r"(?mi)^RISK FACTORS\.?$")),
+    ("1B", re.compile(r"(?mi)^UNRESOLVED STAFF COMMENTS\.?$")),
+    ("2", re.compile(r"(?mi)^PROPERTIES\.?$")),
+    ("3", re.compile(r"(?mi)^LEGAL PROCEEDINGS\.?$")),
+    ("5", re.compile(r"(?mi)^MARKET FOR (THE )?REGISTRANT.{0,60}$")),
+    ("7", re.compile(r"(?mi)^MANAGEMENT.S DISCUSSION AND ANALYSIS.{0,80}$")),
+    ("7A", re.compile(r"(?mi)^QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK\.?$")),
+    ("8", re.compile(r"(?mi)^FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA\.?$")),
+)
+
+# Strategy names, most precise first.
+STRATEGIES = ("upper_case", "mixed_case", "title_only")
+
+# A strategy must locate at least this many of the sections this tool uses before
+# it is accepted; otherwise the next, less precise strategy is tried.
+_REQUIRED_ITEMS = ("1", "1A", "7")
+_MIN_SECTION_CHARS = 1500
 
 _ITEM_TO_SECTION = {
     "1": "item_1_business",
@@ -86,32 +124,33 @@ def _normalise(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", out)
 
 
-def find_item_offsets(text: str) -> dict[str, int]:
-    """Map item number → character offset of its first upper-case heading."""
+def _offsets_from_pattern(text: str, pattern: re.Pattern[str]) -> dict[str, int]:
     offsets: dict[str, int] = {}
-    for m in _ITEM_ANCHOR.finditer(text):
-        item = m.group(1).upper()
-        offsets.setdefault(item, m.start())
+    for m in pattern.finditer(text):
+        offsets.setdefault(m.group(1).upper(), m.start())
     return offsets
 
 
-def extract_sections(raw: bytes | str) -> tuple[dict[str, FilingSection], list[str]]:
-    """Extract the sections this prototype uses. Returns ``(sections, notes)``."""
-    text = html_to_text(raw)
-    offsets = find_item_offsets(text)
-    notes: list[str] = []
-    sections: dict[str, FilingSection] = {}
+def _offsets_from_titles(text: str) -> dict[str, int]:
+    """Locate sections by bare title when the body carries no item prefix.
 
-    if not offsets:
-        notes.append(
-            "No upper-case item headings were found in this document; section extraction "
-            "failed and only whole-document search is available."
-        )
-        return sections, notes
+    For each title, the *last* standalone occurrence is taken: filers repeat the
+    title in cross-references and the table of contents earlier in the document,
+    and the section body itself is the final one.
+    """
+    offsets: dict[str, int] = {}
+    for item, pattern in _TITLE_ANCHORS:
+        matches = list(pattern.finditer(text))
+        if matches:
+            offsets[item] = matches[-1].start()
+    return offsets
 
-    positions = [(item, offsets[item]) for item in _ITEM_ORDER if item in offsets]
-    positions.sort(key=lambda p: p[1])
 
+def _slice_sections(text: str, offsets: dict[str, int]) -> dict[str, FilingSection]:
+    positions = sorted(
+        ((item, offsets[item]) for item in _ITEM_ORDER if item in offsets), key=lambda p: p[1]
+    )
+    out: dict[str, FilingSection] = {}
     for idx, (item, start) in enumerate(positions):
         section_id = _ITEM_TO_SECTION.get(item)
         if section_id is None:
@@ -124,22 +163,99 @@ def extract_sections(raw: bytes | str) -> tuple[dict[str, FilingSection], list[s
                 f"Only {len(body)} characters were captured for {SECTION_LABELS[section_id]}; "
                 "the heading may have been matched inside a table of contents."
             )
-            notes.append(note)
-        sections[section_id] = FilingSection(
+        out[section_id] = FilingSection(
             section_id=section_id,
             label=SECTION_LABELS[section_id],
             text=body,
             char_count=len(body),
             extraction_note=note,
         )
+    return out
 
-    for required in ("item_1_business", "item_1a_risk_factors", "item_7_mdna"):
-        if required not in sections:
+
+def _strategy_is_usable(sections: dict[str, FilingSection]) -> bool:
+    """A strategy is accepted only if it produced substantial required sections."""
+    for item in _REQUIRED_ITEMS:
+        section_id = _ITEM_TO_SECTION.get(item)
+        if section_id is None:
+            continue
+        section = sections.get(section_id)
+        if section is None or section.char_count < _MIN_SECTION_CHARS:
+            return False
+    return True
+
+
+def find_item_offsets(text: str, strategy: str = "upper_case") -> dict[str, int]:
+    """Map item number → character offset, using one anchoring strategy."""
+    if strategy == "upper_case":
+        return _offsets_from_pattern(text, _ITEM_ANCHOR_UPPER)
+    if strategy == "mixed_case":
+        return _offsets_from_pattern(text, _ITEM_ANCHOR_ANY_CASE)
+    if strategy == "title_only":
+        return _offsets_from_titles(text)
+    raise ValueError(f"Unknown anchoring strategy: {strategy}")
+
+
+def extract_sections(
+    raw: bytes | str,
+) -> tuple[dict[str, FilingSection], list[str], str]:
+    """Extract the sections this prototype uses.
+
+    Returns ``(sections, notes, strategy)``. ``strategy`` names which anchoring
+    convention actually worked, or ``"none"`` when extraction failed — it is
+    surfaced in the UI and the brief so an analyst can see how the text was
+    located rather than having to trust it.
+    """
+    text = html_to_text(raw)
+    notes: list[str] = []
+
+    best: dict[str, FilingSection] = {}
+    used = "none"
+    for strategy in STRATEGIES:
+        offsets = find_item_offsets(text, strategy)
+        if not offsets:
+            continue
+        candidate = _slice_sections(text, offsets)
+        if _strategy_is_usable(candidate):
+            best, used = candidate, strategy
+            break
+        # Keep the most complete attempt so a partial result is still returned.
+        if len(candidate) > len(best):
+            best, used = candidate, strategy
+
+    if not best:
+        notes.append(
+            "No item headings could be located in this document by any of the "
+            f"{len(STRATEGIES)} supported conventions ({', '.join(STRATEGIES)}); section "
+            "extraction failed and no text evidence is available for this filing."
+        )
+        return {}, notes, "none"
+
+    if used != STRATEGIES[0]:
+        notes.append(
+            f"Sections were located using the '{used}' heading convention rather than the "
+            "preferred upper-case convention."
+        )
+    if used == "title_only":
+        notes.append(
+            "Sections were located by bare section title because the filing body carries no "
+            "item numbers. This is the least precise strategy: a cross-reference to a section "
+            "title can be mistaken for the section itself. Treat these excerpts with extra care."
+        )
+
+    notes.extend(s.extraction_note for s in best.values() if s.extraction_note)
+    for item in _REQUIRED_ITEMS:
+        section_id = _ITEM_TO_SECTION[item]
+        if section_id not in best:
             notes.append(
-                f"{SECTION_LABELS[required]} could not be located in this filing; "
+                f"{SECTION_LABELS[section_id]} could not be located in this filing; "
                 "evidence for it will be unavailable."
             )
-    return sections, notes
+    return best, notes, used
+
+
+def section_confidence(strategy: str) -> str:
+    return {"upper_case": "high", "mixed_case": "high", "title_only": "low"}.get(strategy, "low")
 
 
 def extract_bold_headings(raw: bytes | str) -> list[str]:
@@ -171,10 +287,18 @@ def extract_bold_headings(raw: bytes | str) -> list[str]:
     return out
 
 
-def extract_risk_headings(raw: bytes | str) -> tuple[list[str], str]:
-    """Risk-factor headings only. Returns ``(headings, confidence)``."""
+def extract_risk_headings(raw: bytes | str, strategy: str | None = None) -> tuple[list[str], str]:
+    """Risk-factor headings only. Returns ``(headings, confidence)``.
+
+    ``strategy`` should be the one :func:`extract_sections` reported, so the Item
+    1A span is located the same way the sections were.
+    """
     text = html_to_text(raw)
-    offsets = find_item_offsets(text)
+    offsets: dict[str, int] = {}
+    for candidate in ([strategy] if strategy and strategy != "none" else list(STRATEGIES)):
+        offsets = find_item_offsets(text, candidate)
+        if "1A" in offsets:
+            break
     start = offsets.get("1A")
     if start is None:
         return [], "low"

@@ -168,6 +168,7 @@ result = bundle.result
 
 st.title(f"{result.pair.later.company_name} ({result.pair.later.ticker})")
 ui.filing_pair_header(result)
+ui.extraction_strategy_note(result)
 
 for w in result.warnings:
     st.warning(w)

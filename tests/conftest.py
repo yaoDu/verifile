@@ -126,3 +126,37 @@ def fake_client(submissions_json, companyfacts_json, earlier_html, later_html) -
             "0001564590-22-026876": earlier_html,
         },
     )
+
+
+@pytest.fixture()
+def sharded_submissions(submissions_json) -> dict:
+    """A high-volume filer: `recent` holds one 10-K, the rest are in older shards.
+
+    This is JPMorgan's real shape — ~25,000 filings mean `recent` spans a few weeks.
+    """
+    import copy
+
+    full = copy.deepcopy(submissions_json)
+    recent = full["filings"]["recent"]
+    trimmed = {k: [v[0]] for k, v in recent.items()}
+    older = {k: v[1:] for k, v in recent.items()}
+    return {
+        "full": full,
+        "subs": {
+            "cik": full["cik"],
+            "name": full["name"],
+            "tickers": full["tickers"],
+            "fiscalYearEnd": full["fiscalYearEnd"],
+            "filings": {
+                "recent": trimmed,
+                "files": [
+                    {
+                        "name": "CIK0000789019-submissions-001.json",
+                        "filingFrom": "2020-01-01",
+                        "filingTo": "2024-12-31",
+                    }
+                ],
+            },
+        },
+        "shard": older,
+    }

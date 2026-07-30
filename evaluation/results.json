@@ -1,10 +1,10 @@
 {
-  "run_at": "2026-07-30T01:32:57.103619+00:00",
+  "run_at": "2026-07-30T01:48:50.437664+00:00",
   "ticker": "MSFT",
   "later_period_end": "2025-06-30",
   "earlier_period_end": "2024-06-30",
   "llm_enabled": false,
-  "pipeline_seconds": 4.39,
+  "pipeline_seconds": 4.18,
   "cases": [
     {
       "id": "q01",
@@ -142,7 +142,7 @@
       "question": "How did management describe competition in the technology sector?",
       "passed": true,
       "detail": "sections=['item_1_business', 'item_1a_risk_factors'] periods=['earlier', 'later'] section_hit=True term_hit=True both_periods=True",
-      "latency_ms": 0,
+      "latency_ms": 1,
       "measures": {
         "retrieval_success": true,
         "citation_validity": true,

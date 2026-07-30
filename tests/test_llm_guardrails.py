@@ -159,7 +159,7 @@ def test_prompt_wraps_evidence_with_an_untrusted_notice(earlier_html, fy2024):
     from filing_change_analyst.retrieval.chunking import chunk_filing
     from filing_change_analyst.sec.sections import extract_sections
 
-    sections, _ = extract_sections(earlier_html)
+    sections, _, _strategy = extract_sections(earlier_html)
     chunk = chunk_filing(sections, fy2024, "earlier")[0]
     block = prompts.evidence_block([RetrievedEvidence(chunk=chunk, score=1.0)])
     assert "untrusted DATA" in block
@@ -263,7 +263,7 @@ def _setup(fact_store, pair, earlier_html, later_html, fy2024, fy2025):
 
     chunks = []
     for html, filing, period in ((earlier_html, fy2024, "earlier"), (later_html, fy2025, "later")):
-        sections, _ = extract_sections(html)
+        sections, _, _strategy = extract_sections(html)
         chunks.extend(chunk_filing(sections, filing, period))
     index = Bm25Index(chunks)
     comps, _, _ = compare_filings(fact_store, pair)

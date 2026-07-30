@@ -56,10 +56,18 @@ default MSFT FY2025/FY2024 run.
 | 21 financial metrics compared, all computed in Python | `analytics/metric_definitions.py`; `DISPLAY_ORDER` |
 | 100% on metric correctness, period correctness, retrieval success, citation validity, citation support, numerical accuracy | `evaluation/RESULTS.md` (11/11, 2/2, 7/7, 11/11, 4/4, 4/4) |
 | 0 of 7 material changes lacking both-period evidence or a caveat | `evaluation/RESULTS.md`, unsupported-claim rate |
-| 131 automated tests, fully offline, ~1.4 s | `pytest -q` |
+| 142 automated tests, fully offline, ~1.5 s | `pytest -q` |
+| 10/11 large filers produce a usable comparison with text evidence | `evaluation/COVERAGE.md` |
 | Full pipeline in ~4–5 s warm | `evaluation/RESULTS.md`, pipeline run time |
 | 471 provenance-carrying evidence chunks indexed for the default pair | default MSFT run |
 | Risk diff: 34 → 31 headings, 2 new / 5 removed / 29 retained | default MSFT run |
+
+**Generalisation, measured**
+
+> Measured coverage across 11 large filers rather than asserting generality, which surfaced three defects
+> a single-company demo could not: heading-markup assumptions that produced zero text evidence for four
+> filers, a filing-discovery path that refused high-volume filers whose 10-Ks fall outside the recent
+> submissions index, and a silent zero-evidence result; raised coverage from 6/11 to 10/11.
 
 ## Second talking point
 

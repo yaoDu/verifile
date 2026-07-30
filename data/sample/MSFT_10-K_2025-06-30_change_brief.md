@@ -10,7 +10,7 @@
 | Accession | `0000950170-24-087843` | `0000950170-25-100235` |
 | SEC source | [filing](https://www.sec.gov/Archives/edgar/data/789019/000095017024087843/msft-20240630.htm) | [filing](https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm) |
 
-_Generated 2026-07-30 01:30 UTC by the Evidence-First Filing Change Analyst. AI synthesis: **disabled**. This is a research aid, not investment advice._
+_Generated 2026-07-30 01:48 UTC by the Evidence-First Filing Change Analyst. AI synthesis: **disabled**. This is a research aid, not investment advice._
 
 ## 1. Executive change summary
 
@@ -298,6 +298,7 @@ _Not generated: AI synthesis is disabled or produced no valid output._
 - **[CAVEAT]** Only Items 1, 1A, 7 and 7A are extracted and indexed. Financial-statement notes, exhibits and segment tables are not searchable in this prototype.
 - **[CAVEAT]** Emphasis deltas are phrase-frequency measures normalised per 10,000 tokens. They indicate prominence, not meaning, and can move because a filing was reorganised.
 - **[CAVEAT]** The year-over-year comparison uses each period as reported in its own filing. Where a restatement flag is shown, part of the change may be a reclassification.
+- **[CAVEAT]** Filing sections were located by heading convention — earlier filing `upper_case` (high confidence), later filing `upper_case` (high confidence). Filers do not agree on how they mark up item headings; the convention used is part of the provenance of every excerpt above.
 - **[CAVEAT]** AI synthesis is disabled: no ANTHROPIC_API_KEY is configured. The financial comparison, risk diff, topic evidence and Markdown brief are unaffected.
 
 ## 9. Sources

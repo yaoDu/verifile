@@ -116,10 +116,11 @@ streamlit run app.py
 Then press **Compare latest filings**. The default is MSFT 10-K year-over-year.
 
 ```bash
-pytest                              # 131 tests, fully offline, ~1.4s
+pytest                              # 142 tests, fully offline, ~1.5s
 ruff check src tests app.py         # lint
 python evaluation/run_evaluation.py # 22 questions against the pinned MSFT FY2025/FY2024 pair
 python evaluation/run_evaluation.py --latest-pair   # score against today's latest pair instead
+python evaluation/run_coverage_check.py             # 11-filer coverage sweep -> evaluation/COVERAGE.md
 ```
 
 ### Running without an LLM
@@ -262,6 +263,20 @@ The three unmeasured questions are **fact-level gaps** — the words are all pre
 fact is not disclosed ("what percentage of capex was attributable to AI?"). A lexical retriever cannot
 detect those; they need a model, and are reported as *not measured* rather than scored as passes.
 
+### Coverage beyond the default company
+
+`python evaluation/run_coverage_check.py` sweeps 11 large filers across sectors and fiscal calendars.
+Measured result: **10/11 produce a usable comparison, all 10 with text evidence** — see
+[`evaluation/COVERAGE.md`](evaluation/COVERAGE.md) for the per-filer table.
+
+This sweep is how three real defects were found, none of which the single-company demo could surface:
+
+| Defect | Symptom | Fix |
+|---|---|---|
+| Section anchoring assumed upper-case item headings | **Zero** text evidence for AAPL, NVDA, P&G and Berkshire — with only a risk-diff warning, so it looked like those filings had no risk factors | Three anchoring strategies tried in order of precision; the one used is reported as provenance |
+| Filing discovery read only the `recent` submissions block | JPM refused outright — it files ~25,000 documents, so `recent` spans weeks and holds one 10-K | Fall back to the paginated older shards, with accession dedupe |
+| Zero-evidence runs were quiet | A filing with no extractable text produced an empty result that read as "nothing changed" | Loud warning naming the filing and stating that the financial comparison is unaffected |
+
 **How the decline gate was built (a real finding from this evaluation).** The first version used a BM25
 score threshold and failed two questions: an off-topic control scored 14.5, higher than several genuine
 questions. Measured over 16 answerable and 6 unanswerable questions, neither BM25 score (ranges 5.8–34.4
@@ -275,7 +290,7 @@ filing contains and which made well-phrased questions look unanswerable. That se
 
 ## Testing
 
-131 tests, all offline, ~1.4 s. Fixtures are trimmed real SEC captures (submissions and companyfacts for
+142 tests, all offline, ~1.5 s. Fixtures are trimmed real SEC captures (submissions and companyfacts for
 CIK 0000789019) plus two synthetic miniature 10-Ks. No test touches the network or needs an API key.
 
 | Area | Covers |
@@ -286,6 +301,7 @@ CIK 0000789019) plus two synthetic miniature 10-Ks. No test touches the network 
 | `test_citations.py` | accession validation, EDGAR URL construction, fabricated-id rejection, both-period requirement, no page numbers |
 | `test_llm_guardrails.py` | schema validation, numeric grounding, recommendation detection, prompt-injection redaction, stubbed-model gates, failure/refusal handling, key never logged |
 | `test_qa_gating.py` | content-term extraction, decline gate on both signals, risk-question routing, no-LLM behaviour |
+| `test_filing_discovery.py` | older-submissions-shard fallback for high-volume filers, accession dedupe, shard-fetch failure, registrants with no filing history |
 | `test_end_to_end.py` | full pipeline offline, brief structure and provenance, reproducibility, incompatible pairs, a simulated SEC outage |
 
 ---
@@ -338,15 +354,23 @@ Honest and specific. Full list with mitigations in [`docs/limitations.md`](docs/
    this caveat.
 4. **Only Items 1, 1A, 7 and 7A are extracted.** Financial-statement notes, segment tables, exhibits and
    Item 5 market information are not searchable.
-5. **Section extraction relies on filers rendering item headings in upper case.** It works on the MSFT
-   filings tested and reports low confidence rather than guessing when it fails, but it has not been
-   validated across a broad sample of filers.
+5. **Section extraction depends on heading markup, which filers do not standardise.** Three anchoring
+   strategies are tried in order and the one that worked is reported as provenance in the UI and the
+   brief: `upper_case` (MSFT, WMT, UNH, KO, TSLA), `mixed_case` (AAPL, NVDA, JPM, BRK-B) and
+   `title_only` (P&G — no item numbers in the body at all, reported at **low** confidence because a
+   cross-reference to a section title can be mistaken for the section itself). Anchoring on upper case
+   alone — the original implementation — silently produced zero text evidence for four of ten filers.
 6. **Free cash flow is a prototype definition** (operating cash flow − purchases of PP&E). It excludes
    acquisitions, finance-lease principal and capitalised software, so it will not match a company's own
    FCF disclosure. The definition is printed next to the number.
-7. **Ticker generality is untested beyond MSFT.** Other tickers run, but the metric concept fallbacks and
-   the section anchors are only validated on one filer. (Validated across three MSFT filing years,
-   including a 10-K filed on the day of the build with no code change — but that is still one filer.)
+7. **Coverage beyond Microsoft is measured, not assumed — and it is uneven.** 10 of 11 large filers
+   produce a usable comparison with text evidence ([`evaluation/COVERAGE.md`](evaluation/COVERAGE.md)),
+   but metric coverage varies by business model: 21/21 for MSFT and TSLA, 17–19/21 for staples and
+   retail, and only 7/21 for JPM and 9/21 for Berkshire, because banks and insurance conglomerates have
+   no gross profit, cost of revenue or PP&E-style capex to tag. Those degrade to `N/A` correctly, but the
+   tool is much less useful for financials. XOM is refused outright: the SEC ticker index currently points
+   XOM at "ExxonMobil Holdings Corp", a registrant with no 10-K history, and the tool will not follow a
+   ticker to its predecessor entity.
 8. **10-Q support is structural only.** The comparability checks handle it; the metric catalogue and topic
    probes are tuned for annual filings.
 9. **The live model path has never been exercised against a real API.** No `ANTHROPIC_API_KEY` was

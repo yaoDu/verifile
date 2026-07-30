@@ -7,7 +7,7 @@ from datetime import date, datetime
 from typing import Any
 
 from ..models import Filing, FilingPair
-from .client import SecClient, SecError
+from .client import TTL_INDEX, SecClient, SecError
 
 log = logging.getLogger(__name__)
 
@@ -16,6 +16,10 @@ SUPPORTED_FORMS = ("10-K", "10-Q")
 # A 10-K/A amends a 10-K. We surface amendments but never silently prefer them,
 # because an amendment often restates only part of the original document.
 _AMENDMENT_SUFFIX = "/A"
+
+# Older submission shards are immutable once published, but they are indexes
+# rather than archives, so they get the same TTL as the recent index.
+TTL_OLDER_SHARD = TTL_INDEX
 
 
 def _parse_date(value: str) -> date | None:
@@ -43,46 +47,79 @@ def list_filings(
 
     cik, company_name = client.resolve_ticker(ticker)
     subs = client.submissions(cik, refresh=refresh)
-    recent: dict[str, Any] = subs.get("filings", {}).get("recent", {})
+    filings_block: dict[str, Any] = subs.get("filings", {})
+    recent: dict[str, Any] = filings_block.get("recent", {})
     if not recent.get("form"):
-        raise SecError(f"SEC returned no recent filings for {ticker}.")
+        raise SecError(
+            f"SEC returned no filings at all for {ticker.upper()} (CIK {cik}, "
+            f"'{subs.get('name', company_name)}'). This registrant has no filing history."
+        )
 
     fye = str(subs.get("fiscalYearEnd") or "")
     tickers = subs.get("tickers") or [ticker.upper()]
     resolved_ticker = ticker.upper() if ticker.upper() in tickers else str(tickers[0])
+    company = str(subs.get("name") or company_name)
+
+    def collect(block: dict[str, Any], into: list[Filing]) -> None:
+        forms = block.get("form") or []
+        for i in range(len(forms)):
+            f = str(forms[i])
+            base = f[: -len(_AMENDMENT_SUFFIX)] if f.endswith(_AMENDMENT_SUFFIX) else f
+            if base != form:
+                continue
+            if f.endswith(_AMENDMENT_SUFFIX) and not include_amendments:
+                continue
+            filing_date = _parse_date(str(block["filingDate"][i]))
+            report_date = _parse_date(str(block["reportDate"][i])) or filing_date
+            if filing_date is None or report_date is None:
+                continue
+            docs = block.get("primaryDocument") or []
+            into.append(
+                Filing(
+                    cik=cik,
+                    ticker=resolved_ticker,
+                    company_name=company,
+                    form=f,
+                    accession=str(block["accessionNumber"][i]),
+                    filing_date=filing_date,
+                    report_date=report_date,
+                    primary_document=str(docs[i] if i < len(docs) else "") or "",
+                    fiscal_year_end=fye,
+                    is_amendment=f.endswith(_AMENDMENT_SUFFIX),
+                )
+            )
+            if len(into) >= limit:
+                return
 
     out: list[Filing] = []
-    n = len(recent["form"])
-    for i in range(n):
-        f = str(recent["form"][i])
-        base = f[: -len(_AMENDMENT_SUFFIX)] if f.endswith(_AMENDMENT_SUFFIX) else f
-        if base != form:
-            continue
-        if f.endswith(_AMENDMENT_SUFFIX) and not include_amendments:
-            continue
-        filing_date = _parse_date(str(recent["filingDate"][i]))
-        report_date = _parse_date(str(recent["reportDate"][i])) or filing_date
-        if filing_date is None or report_date is None:
-            continue
-        out.append(
-            Filing(
-                cik=cik,
-                ticker=resolved_ticker,
-                company_name=str(subs.get("name") or company_name),
-                form=f,
-                accession=str(recent["accessionNumber"][i]),
-                filing_date=filing_date,
-                report_date=report_date,
-                primary_document=str(recent.get("primaryDocument", [""] * n)[i] or ""),
-                fiscal_year_end=fye,
-                is_amendment=f.endswith(_AMENDMENT_SUFFIX),
-            )
-        )
-        if len(out) >= limit:
-            break
+    collect(recent, out)
 
-    out.sort(key=lambda x: (x.report_date, x.filing_date), reverse=True)
-    return out
+    # High-volume filers overflow the `recent` block. JPMorgan files ~25,000
+    # documents, so `recent` spans only a few weeks and contains a single 10-K —
+    # the rest live in the older paginated shards listed under `filings.files`.
+    # Without this fallback the tool refuses mega-cap banks outright.
+    if len(out) < 2:
+        shards = filings_block.get("files") or []
+        for shard in shards:
+            name = str(shard.get("name") or "")
+            if not name:
+                continue
+            try:
+                older = client.fetch_json(
+                    f"https://data.sec.gov/submissions/{name}", ttl=TTL_OLDER_SHARD
+                )
+            except SecError as exc:  # a missing shard must not fail the whole lookup
+                log.warning("Could not load older submissions shard %s: %s", name, exc)
+                continue
+            collect(older, out)
+            if len(out) >= max(2, min(limit, 4)):
+                break
+
+    # Dedupe on accession in case a shard overlaps `recent`.
+    seen: set[str] = set()
+    unique = [f for f in out if not (f.accession in seen or seen.add(f.accession))]
+    unique.sort(key=lambda x: (x.report_date, x.filing_date), reverse=True)
+    return unique
 
 
 def _months_between(a: date, b: date) -> int:
@@ -154,9 +191,22 @@ def select_filing_pair(
     """Default selection: the two most recent comparable filings of ``form``."""
     filings = list_filings(client, ticker, form, refresh=refresh)
     if len(filings) < 2:
+        detail = ""
+        if filings:
+            f = filings[0]
+            detail = (
+                f" The only one found is {f.form} for the period ending {f.report_date} "
+                f"(accession {f.accession})."
+            )
+        else:
+            detail = (
+                " This can happen when a ticker has just been reassigned to a newly registered "
+                "entity after a reorganisation — the SEC ticker index points at the new "
+                "registrant, which has no filing history yet."
+            )
         raise SecError(
             f"Found {len(filings)} {form} filing(s) for {ticker.upper()}; at least 2 are needed "
-            "for a period-over-period comparison."
+            f"for a period-over-period comparison.{detail}"
         )
 
     # Prefer originals over amendments when both cover the same report date.

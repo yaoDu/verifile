@@ -29,20 +29,20 @@ from filing_change_analyst.sec.sections import (
 
 
 def test_required_sections_are_extracted(later_html):
-    sections, notes = extract_sections(later_html)
+    sections, notes, _strategy = extract_sections(later_html)
     for required in ("item_1_business", "item_1a_risk_factors", "item_7_mdna"):
         assert required in sections, notes
         assert sections[required].char_count > 200
 
 
 def test_section_text_starts_at_the_item_heading(later_html):
-    sections, _ = extract_sections(later_html)
+    sections, _, _strategy = extract_sections(later_html)
     assert sections["item_1a_risk_factors"].text.startswith("ITEM 1A.")
     assert sections["item_7_mdna"].text.startswith("ITEM 7.")
 
 
 def test_table_of_contents_is_not_mistaken_for_the_section(later_html):
-    sections, _ = extract_sections(later_html)
+    sections, _, _strategy = extract_sections(later_html)
     # The TOC uses title case; a TOC match would produce a tiny section.
     assert sections["item_1_business"].char_count > 500
 
@@ -54,7 +54,7 @@ def test_running_page_headers_are_stripped(later_html):
 
 
 def test_sections_do_not_bleed_into_each_other(later_html):
-    sections, _ = extract_sections(later_html)
+    sections, _, _strategy = extract_sections(later_html)
     assert "ITEM 1A." not in sections["item_1_business"].text
     assert "ITEM 7." not in sections["item_1a_risk_factors"].text
 
@@ -65,9 +65,74 @@ def test_html_is_never_passed_through(later_html):
 
 
 def test_extraction_failure_is_reported_not_hidden():
-    sections, notes = extract_sections(b"<html><body><p>Nothing useful here.</p></body></html>")
+    sections, notes, strategy = extract_sections(
+        b"<html><body><p>Nothing useful here.</p></body></html>"
+    )
     assert sections == {}
-    assert any("No upper-case item headings" in n for n in notes)
+    assert strategy == "none"
+    assert any("No item headings could be located" in n for n in notes)
+
+
+def test_upper_case_convention_is_preferred(later_html):
+    _, _, strategy = extract_sections(later_html)
+    assert strategy == "upper_case"
+
+
+def test_mixed_case_headings_are_extracted():
+    """Workiva-generated filers (AAPL, NVDA, BRK-B) use title case, not upper case.
+
+    Anchoring on upper case alone returned zero sections for four of ten filers
+    measured, so a title-case fallback is required.
+    """
+    body = "".join(
+        f"<p>Item {n}. {t}</p>" + f"<p>{'Body text for this section. ' * 120}</p>"
+        for n, t in (
+            ("1", "Business"),
+            ("1A", "Risk Factors"),
+            ("1B", "Unresolved Staff Comments"),
+            ("7", "Management's Discussion and Analysis of Financial Condition"),
+            ("7A", "Quantitative and Qualitative Disclosures About Market Risk"),
+            ("8", "Financial Statements and Supplementary Data"),
+        )
+    )
+    sections, notes, strategy = extract_sections(f"<html><body>{body}</body></html>".encode())
+    assert strategy == "mixed_case"
+    for required in ("item_1_business", "item_1a_risk_factors", "item_7_mdna"):
+        assert required in sections
+        assert sections[required].char_count > 1500
+    assert any("mixed_case" in n for n in notes)
+
+
+def test_title_only_headings_are_extracted_at_low_confidence():
+    """P&G-style filings carry no item numbers in the body at all."""
+    from filing_change_analyst.sec.sections import section_confidence
+
+    body = "".join(
+        f"<p>{t}</p>" + f"<p>{'Body text for this section. ' * 120}</p>"
+        for t in (
+            "BUSINESS",
+            "RISK FACTORS",
+            "PROPERTIES",
+            "MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION",
+            "FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+        )
+    )
+    sections, notes, strategy = extract_sections(f"<html><body>{body}</body></html>".encode())
+    assert strategy == "title_only"
+    assert section_confidence(strategy) == "low"
+    for required in ("item_1_business", "item_1a_risk_factors", "item_7_mdna"):
+        assert required in sections
+    assert any("least precise strategy" in n for n in notes)
+
+
+def test_a_more_precise_strategy_wins_when_both_could_match():
+    """An upper-case filing must not be re-anchored by the looser strategies."""
+    body = "".join(
+        f"<p>ITEM {n}. {t}</p>" + f"<p>{'Body text. ' * 250}</p>"
+        for n, t in (("1", "BUSINESS"), ("1A", "RISK FACTORS"), ("7", "MD&A"), ("8", "FS"))
+    )
+    _, _, strategy = extract_sections(f"<html><body>{body}</body></html>".encode())
+    assert strategy == "upper_case"
 
 
 # --------------------------------------------------------------------------- #
@@ -114,14 +179,14 @@ def index(earlier_html, later_html, fy2024, fy2025):
         (earlier_html, fy2024, "earlier"),
         (later_html, fy2025, "later"),
     ):
-        sections, _ = extract_sections(html)
+        sections, _, _strategy = extract_sections(html)
         headings, _ = extract_risk_headings(html)
         chunks.extend(chunk_filing(sections, filing, period, headings=headings))
     return Bm25Index(chunks)
 
 
 def test_every_chunk_carries_full_provenance(earlier_html, fy2024):
-    sections, _ = extract_sections(earlier_html)
+    sections, _, _strategy = extract_sections(earlier_html)
     chunks = chunk_filing(sections, fy2024, "earlier")
     assert chunks
     for c in chunks:
@@ -132,7 +197,7 @@ def test_every_chunk_carries_full_provenance(earlier_html, fy2024):
 
 
 def test_chunk_ids_are_unique_and_stable(earlier_html, fy2024):
-    sections, _ = extract_sections(earlier_html)
+    sections, _, _strategy = extract_sections(earlier_html)
     a = chunk_filing(sections, fy2024, "earlier")
     b = chunk_filing(sections, fy2024, "earlier")
     assert [c.chunk_id for c in a] == [c.chunk_id for c in b]

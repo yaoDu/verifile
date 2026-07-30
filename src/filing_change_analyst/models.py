@@ -435,6 +435,9 @@ class AnalysisResult(BaseModel):
     topics: list[TopicEvidencePair] = Field(default_factory=list)
     changes: list[MaterialChange] = Field(default_factory=list)
     risk_delta: RiskFactorDelta | None = None
+    # Which heading convention located each period's sections; surfaced so an
+    # analyst can see how the text was found rather than having to trust it.
+    section_strategy: dict[str, str] = Field(default_factory=dict)
     brief_extras: LlmBriefSections | None = None
     llm_logs: list[LlmRunLog] = Field(default_factory=list)
     llm_used: bool = False

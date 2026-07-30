@@ -244,6 +244,18 @@ def build_markdown_brief(result: AnalysisResult) -> str:
         "The year-over-year comparison uses each period as reported in its own filing. Where a "
         "restatement flag is shown, part of the change may be a reclassification.",
     ]
+    if result.section_strategy:
+        from ..sec.sections import section_confidence
+
+        detail = ", ".join(
+            f"{period} filing `{strategy}` ({section_confidence(strategy)} confidence)"
+            for period, strategy in sorted(result.section_strategy.items())
+        )
+        standing.append(
+            "Filing sections were located by heading convention — "
+            f"{detail}. Filers do not agree on how they mark up item headings; the convention "
+            "used is part of the provenance of every excerpt above."
+        )
     for line in standing:
         out.append(f"- **[{LABELS['caveat']}]** {line}")
     if extras and extras.caveats:

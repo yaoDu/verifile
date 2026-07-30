@@ -147,9 +147,19 @@ and made the whole system work with no API key. The cost is paraphrase recall, m
 query expansions. It's in the trade-offs table, and dense retrieval is a clean addition later.
 
 **"What happens on a company that isn't Microsoft?"**
-It runs — ticker resolution, filing selection and the comparability checks are general. What's validated
-end to end is MSFT. The metric concept fallbacks and the section anchors are the parts I'd expect to need
-work, and that's stated in the limitations rather than glossed over.
+I measured it rather than guessing — `evaluation/run_coverage_check.py` sweeps 11 large filers and writes
+`COVERAGE.md`. 10 of 11 produce a usable comparison with text evidence. That sweep found three real bugs
+the single-company demo couldn't: section anchoring assumed upper-case item headings and returned *zero*
+evidence for Apple, NVDA, P&G and Berkshire; filing discovery read only the `recent` submissions block and
+refused JPMorgan, which files 25,000 documents; and a zero-evidence run was quiet enough to read as
+"nothing changed". All three are fixed. What's still uneven is metric coverage by business model — 7/21
+for JPM, 9/21 for Berkshire, because banks have no gross profit or PP&E capex to tag. Those degrade to
+`N/A` correctly, but I'd be honest that the tool is much less useful for financials.
+
+**"Show me a filer where it's weakest."**
+Type `PG` in the sidebar. P&G's 10-K carries no item numbers in the body at all, so extraction falls back
+to anchoring on bare section titles — and the app says so, in a warning, with "low confidence" next to it.
+That's the design: it still works, and it tells you how much to trust it.
 
 **"What's the weakest part?"**
 The deterministic decline gate detects vocabulary gaps but not fact gaps. "What was the closing share

@@ -44,7 +44,7 @@ def test_unknown_citation_ids_are_dropped(earlier_html, fy2024):
     from filing_change_analyst.retrieval.chunking import chunk_filing
     from filing_change_analyst.sec.sections import extract_sections
 
-    sections, _ = extract_sections(earlier_html)
+    sections, _, _strategy = extract_sections(earlier_html)
     chunks = chunk_filing(sections, fy2024, "earlier")
     allowed = {c.chunk_id for c in chunks}
     real = chunks[0].chunk_id
@@ -78,7 +78,7 @@ def test_citation_string_has_no_page_number_and_carries_provenance(earlier_html,
     from filing_change_analyst.retrieval.chunking import chunk_filing
     from filing_change_analyst.sec.sections import extract_sections
 
-    sections, _ = extract_sections(earlier_html)
+    sections, _, _strategy = extract_sections(earlier_html)
     chunk = chunk_filing(sections, fy2024, "earlier")[0]
     citation = format_citation(chunk)
     assert fy2024.accession in citation
@@ -99,7 +99,7 @@ def test_every_brief_citation_resolves(fact_store, pair, earlier_html, later_htm
 
     chunks = []
     for html, filing, period in ((earlier_html, fy2024, "earlier"), (later_html, fy2025, "later")):
-        sections, _ = extract_sections(html)
+        sections, _, _strategy = extract_sections(html)
         chunks.extend(chunk_filing(sections, filing, period))
     index = Bm25Index(chunks)
     comps, _, _ = compare_filings(fact_store, pair)

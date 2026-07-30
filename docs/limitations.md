@@ -9,7 +9,7 @@ One page. Every entry states what breaks, how it shows up, and what the system d
 | 1 | **Fact-level gap not detected.** A question whose words all appear in the filings but whose fact is undisclosed ("what was the closing share price?") | Evidence is returned instead of a refusal in no-LLM mode | Model declines correctly when a key is present; kept as evaluation controls `q20`–`q22` and reported as *not measured*, never as a pass | An analyst without a key could read the excerpts as an answer |
 | 2 | **Decline thresholds calibrated on one pair.** Coverage 0.70, score 3.0, ~8% margin | Over- or under-declining on other companies | Measured table and reasoning recorded next to the constants; a test asserts the separation still holds | Untested on other filers |
 | 3 | **Emphasis ≠ meaning.** Phrase frequency cannot tell "we invested in AI" from "AI is a risk" | A change described as expanded emphasis that is really reorganised disclosure | Normalised per 10,000 tokens; caveat attached to every change that uses it; divergences flagged rather than smoothed over | Reorganisation still moves the signal |
-| 4 | **Section extraction depends on upper-case item headings** | Wrong or tiny section, or none at all | Table-of-contents traps avoided by case; short sections raise an extraction note; missing sections raise a warning and the pipeline continues | Not validated across a broad sample of filers |
+| 4 | **Filers do not standardise item-heading markup** | Wrong, tiny, or no sections | Three anchoring strategies tried in order (`upper_case` → `mixed_case` → `title_only`), each accepted only if it yields substantial required sections; the strategy used is reported as provenance in the UI and brief; total failure raises a loud warning naming the filing | `title_only` can mistake a cross-reference for a section start, so it is reported at low confidence; measured on 11 filers, not the whole market |
 | 5 | **XBRL tag not present** | Metric shows `N/A` with the concepts tried | Ordered concept fallbacks; gross profit falls back to revenue − cost of revenue; derived metrics degrade rather than guess | Values visible in the statement HTML but untagged are not recovered |
 | 6 | **Restatement or reclassification** | Prior-year figure differs between the two filings | Explicit restatement check comparing as-first-reported vs as-re-tagged, surfaced as an error banner | Only covers metrics in the catalogue |
 | 7 | **Incompatible periods** | Comparison would mix a quarter with a year | Structural checks before arithmetic, fact-level checks per metric; blocked comparisons show `N/A` with the reason and a blocking banner in the brief | A filer with a non-standard calendar may be refused when it is genuinely comparable |
@@ -19,6 +19,7 @@ One page. Every entry states what breaks, how it shows up, and what the system d
 | 11 | **Model unavailable, slow or refusing** | No interpretation | Deterministic pass completes first and is fully displayable; model failures become a run-log entry, never an exception | Interpretive sections are simply absent |
 | 12 | **SEC unavailable or rate-limiting** | Analysis cannot start | Throttling below the fair-access ceiling, 30-second timeout, bounded retries with backoff, stale-cache fallback, clear error text | A cold start with SEC down cannot proceed |
 | 13 | **One filing document missing** | Half the text evidence gone | Warning recorded; the financial comparison and the brief still complete (tested) | Change detection for that pair is unusable |
+| 16 | **A ticker reassigned to a new registrant** | The SEC ticker index points at an entity with no filing history (XOM → "ExxonMobil Holdings Corp") | Refused with an explanation naming the registrant and the likely cause, rather than comparing the wrong entity | The tool cannot follow a ticker to its predecessor entity |
 | 14 | **Ground truth goes stale** when a newer 10-K is filed | Evaluation exact-number questions fail | The runner detects the period mismatch and prints a refresh warning instead of reporting silent failures | Requires a manual refresh |
 | 15 | **Risk diff is heading-level** | A rewritten risk body under an unchanged heading is missed | Item 1A character counts shown alongside; caveat states the limitation explicitly | Real misses are possible |
 
@@ -46,7 +47,10 @@ without the tool losing its value.
   a company's own FCF disclosure. The definition is printed next to the number everywhere it appears.
 * Ten research topics. A change outside them is not surfaced as a material change, though it remains
   searchable in the Q&A view.
-* One company validated end to end (MSFT). Other tickers run but are not validated.
+* Coverage measured on 11 large filers (`evaluation/COVERAGE.md`): 10/11 usable. Metric coverage is
+  business-model dependent — 7/21 for JPM, 9/21 for Berkshire, because banks and insurance
+  conglomerates lack gross profit, cost of revenue and PP&E-style capex. Correct degradation, but the
+  tool is much less useful for financials. Correctness ground truth exists for MSFT only.
 * 10-Q support is structural only: comparability checks handle it; metrics and topics are tuned for
   annual filings.
 * No recommendations, price targets, forecasts, portfolio construction or trading logic — by design.

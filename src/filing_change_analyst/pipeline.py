@@ -21,7 +21,7 @@ from .retrieval.search import probe_all_topics
 from .sec.client import SecClient, SecError
 from .sec.facts import FactStore
 from .sec.filings import build_pair, list_filings, select_filing_pair
-from .sec.sections import extract_risk_headings, extract_sections
+from .sec.sections import extract_risk_headings, extract_sections, section_confidence
 
 if TYPE_CHECKING:  # imported lazily at runtime so no-LLM installs stay light
     from .services.llm import LlmClient
@@ -77,6 +77,7 @@ def run_analysis(
         warnings.extend(calc_warnings)
 
         sections: dict[str, dict] = {}
+        section_strategy: dict[str, str] = {}
         chunks = []
         risk_delta = None
         risk_meta: dict[str, tuple[list[str], str, int]] = {}
@@ -96,10 +97,24 @@ def run_analysis(
                 risk_meta[period] = ([], "low", 0)
                 continue
 
-            secs, notes = extract_sections(raw)
+            secs, notes, strategy = extract_sections(raw)
             sections[period] = secs
+            section_strategy[period] = strategy
+            if strategy == "none":
+                warnings.append(
+                    f"Section extraction failed for the {period} filing "
+                    f"({filing.form} {filing.accession}): no item headings could be located by "
+                    "any supported convention. No text evidence is available for that period, so "
+                    "material-change detection and filing search are unavailable. The financial "
+                    "comparison is unaffected."
+                )
+            elif strategy != "upper_case":
+                data_notes.append(
+                    f"{period} filing: sections located with the '{strategy}' heading convention "
+                    f"(extraction confidence {section_confidence(strategy)})."
+                )
             data_notes.extend(f"{period} filing: {n}" for n in notes)
-            headings, confidence = extract_risk_headings(raw)
+            headings, confidence = extract_risk_headings(raw, strategy)
             risk_chars = secs["item_1a_risk_factors"].char_count if "item_1a_risk_factors" in secs else 0
             risk_meta[period] = (headings, confidence, risk_chars)
             chunks.extend(chunk_filing(secs, filing, period, headings=headings))  # type: ignore[arg-type]
@@ -107,6 +122,13 @@ def run_analysis(
         progress("Indexing evidence and probing research topics…")
         index = Bm25Index(chunks)
         topics = probe_all_topics(index)
+
+        if not chunks:
+            warnings.append(
+                "No text evidence could be extracted from either filing, so there are no "
+                "material changes, no risk diff and no filing search. Only the financial "
+                "comparison below is available."
+            )
 
         e_head, e_conf, e_chars = risk_meta.get("earlier", ([], "low", 0))
         l_head, l_conf, l_chars = risk_meta.get("later", ([], "low", 0))
@@ -137,6 +159,7 @@ def run_analysis(
             topics=topics,
             changes=changes,
             risk_delta=risk_delta,
+            section_strategy=section_strategy,
             warnings=list(dict.fromkeys(warnings)),
             data_notes=list(dict.fromkeys(data_notes)),
         )

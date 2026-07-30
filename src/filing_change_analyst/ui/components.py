@@ -59,6 +59,34 @@ def filing_pair_header(result: AnalysisResult) -> None:
         st.warning("\n".join(f"- {n}" for n in pair.comparability_notes))
 
 
+def extraction_strategy_note(result: AnalysisResult) -> None:
+    """Show how each filing's text was located. Filers disagree on markup, so the
+    strategy that worked is part of the provenance, not an implementation detail."""
+    if not result.section_strategy:
+        return
+    from ..sec.sections import section_confidence
+
+    bits = []
+    for period in ("earlier", "later"):
+        strategy = result.section_strategy.get(period)
+        if not strategy:
+            continue
+        bits.append(f"{period}: `{strategy}` ({section_confidence(strategy)} confidence)")
+    if not bits:
+        return
+    line = "Section headings located by — " + " · ".join(bits)
+    if any("title_only" in b for b in bits):
+        st.warning(
+            f"{line}. The `title_only` strategy anchors on bare section titles because the "
+            "filing body carries no item numbers; a cross-reference to a section title can be "
+            "mistaken for the section itself, so treat these excerpts with extra care."
+        )
+    elif any("none" in b for b in bits):
+        st.error(f"{line}. No text evidence is available for that period.")
+    else:
+        st.caption(line)
+
+
 def metrics_table(result: AnalysisResult) -> pd.DataFrame:
     rows = []
     for c in result.comparisons:
