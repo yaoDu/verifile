@@ -43,8 +43,7 @@ def test_seeds_an_empty_cache_and_payloads_survive(tmp_path):
 
     assert state["seeded"] is True
     assert state["entries"] == 1
-    # Byte-identical: the provenance claim rests on the cache returning exactly
-    # what SEC returned.
+    # Byte-identical: the provenance claim rests on it.
     assert DiskCache(tmp_path / "live").get(URL) == PAYLOAD
 
 

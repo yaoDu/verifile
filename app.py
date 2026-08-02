@@ -19,10 +19,8 @@ import streamlit as st  # noqa: E402
 def _bridge_secrets_to_env() -> None:
     """Copy Streamlit secrets into the environment before settings are built.
 
-    ``pydantic-settings`` reads the environment and ``.env``; hosted
-    deployments supply configuration through ``st.secrets`` instead. An
-    existing environment variable wins, so a local ``.env`` still takes
-    precedence. Values are never logged.
+    Hosted deployments have no ``.env``. An existing environment variable wins,
+    so a local ``.env`` still takes precedence. Values are never logged.
     """
     try:
         items = list(st.secrets.items())

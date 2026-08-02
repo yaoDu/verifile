@@ -1,12 +1,8 @@
-"""Exercise the live model path against a real API and report what happened.
+"""Exercise the live model path and report what happened.
 
-The LLM branch is the least-tested surface in this project — the guardrails are
-covered by stubbed-model tests, but the prompts have never been tuned against
-real model output (see README, Limitations). This script runs one real synthesis
-against the pinned MSFT pair and prints the diagnostics that matter: which calls
-succeeded, how the four gates behaved, and where tokens went.
-
-The key is read from the environment and is never printed.
+Runs one real synthesis against the pinned MSFT pair and prints which calls
+succeeded, how the four gates behaved, and where tokens went. The key is read
+from the environment and never printed.
 
     export API_KEY="sk-ant-..."       # or put it in .env
     python scripts/check_llm_path.py
@@ -31,7 +27,7 @@ from filing_change_analyst.pipeline import (  # noqa: E402
 )
 from filing_change_analyst.services.llm import LlmClient  # noqa: E402
 
-# The evaluation pair, pinned by accession so the run is reproducible.
+# Pinned by accession so the run is reproducible.
 FY2025 = "0000950170-25-100235"
 FY2024 = "0000950170-24-087843"
 

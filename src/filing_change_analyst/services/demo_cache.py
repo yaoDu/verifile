@@ -1,15 +1,10 @@
 """Warm-start the disk cache from a bundled archive of SEC responses.
 
-A cold run pulls ~30 MB from EDGAR, and SEC rate-limits by IP — a poor first
-impression on a shared cloud host. The repository therefore ships the SEC
-responses for the demo tickers, unpacked here on first start.
+A cold run pulls ~30 MB from EDGAR, which SEC rate-limits by IP. The bundle
+holds the raw bytes SEC returned, keyed by request URL — the same thing a live
+run would cache, so nothing downstream changes.
 
-What is bundled is the raw bytes SEC returned, keyed by request URL: the same
-thing :class:`~filing_change_analyst.services.cache.DiskCache` would hold after
-a live run. Nothing downstream changes, and "Bypass cache" still forces a live
-re-fetch.
-
-Rebuild the archive with ``python scripts/build_demo_cache.py``.
+Rebuild with ``python scripts/build_demo_cache.py``.
 """
 
 from __future__ import annotations
@@ -33,8 +28,7 @@ class UnsafeArchiveError(RuntimeError):
 def _safe_members(tf: tarfile.TarFile, dest: Path) -> list[tarfile.TarInfo]:
     """Return the archive members, rejecting any that escape ``dest``.
 
-    ``tarfile`` honours ``../`` paths, absolute paths and symlinks. Python
-    3.12's ``filter="data"`` covers this, but is spelled out here so the
+    Spelled out rather than relying on Python 3.12's ``filter="data"``, so the
     guarantee does not depend on the runtime's patch version.
     """
     resolved_dest = dest.resolve()
@@ -52,10 +46,9 @@ def _safe_members(tf: tarfile.TarFile, dest: Path) -> list[tarfile.TarInfo]:
 def seed_demo_cache(archive: Path | None = None, cache: DiskCache | None = None) -> dict:
     """Extract the bundled cache when the live cache is empty.
 
-    Returns the cache stats with an added ``seeded`` flag. Skipped when the
-    cache already holds entries, so a warm local cache is never overwritten.
-    A missing or unreadable archive degrades to a slow cold start rather than
-    raising.
+    Skipped when the cache already holds entries, so a warm local cache is
+    never overwritten. A missing or unreadable archive degrades to a slow cold
+    start rather than raising.
     """
     cache = cache or DiskCache()
     stats = cache.stats()

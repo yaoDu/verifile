@@ -246,25 +246,20 @@ def test_refusal_is_treated_as_a_failure(monkeypatch):
 
 
 def test_schema_travels_as_a_forced_tool_call(monkeypatch):
-    """DeepSeek ignores `output_config.format`, so the schema must ride a tool.
-
-    Sending it the old way would look fine locally and silently return
-    unconstrained prose in production, so the request shape is asserted.
-    """
+    """Sending the schema the old way looks fine locally and returns prose in
+    production, so the request shape itself is asserted."""
     client = LlmClient(api_key="sk-ant-test")
     sent: dict = {}
     monkeypatch.setattr(client, "_anthropic", lambda: _fake_client(captured=sent))
     client.structured(system="s", user="u", schema=LlmChangeSet, purpose="x")
 
-    assert "output_format" not in sent, "structured-output param is not honoured by DeepSeek"
+    assert "output_format" not in sent, "structured-output param is not honoured"
     assert sent["tool_choice"]["type"] == "tool", "the tool call must be forced, not optional"
     assert len(sent["tools"]) == 1
     assert sent["tools"][0]["input_schema"] == LlmChangeSet.model_json_schema()
     assert sent["tool_choice"]["name"] == sent["tools"][0]["name"]
-    # effort is the one output_config field the endpoint does honour
     assert "effort" in sent["output_config"]
-    # Thinking mode rejects a forced tool_choice on both providers, and the
-    # forced call is what carries the schema, so thinking must be off.
+    # Thinking mode rejects a forced tool_choice on both providers.
     assert sent["thinking"] == {"type": "disabled"}
 
 

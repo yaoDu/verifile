@@ -24,9 +24,8 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from filing_change_analyst.services.cache import DiskCache  # noqa: E402
 from filing_change_analyst.services.demo_cache import DEMO_CACHE_ARCHIVE  # noqa: E402
 
-# MSFT is the app default and carries three filings, so both the live pair and
-# the pinned evaluation pair resolve offline. The rest cover the other two
-# section-anchoring strategies, P&G being the low-confidence `title_only` case.
+# MSFT carries three filings so both the live pair and the pinned evaluation
+# pair resolve offline. The rest cover the other section-anchoring strategies.
 BUNDLED_CIKS = {
     "0000789019": "MSFT — app default, FY2026/FY2025/FY2024",
     "0000320193": "AAPL — mixed_case anchoring",
@@ -68,8 +67,7 @@ def build(source_root: Path, out: Path) -> None:
             copied += 1
 
         out.parent.mkdir(parents=True, exist_ok=True)
-        # Sorted members keep an unchanged cache rebuilding to a similar file
-        # rather than a noisy git diff.
+        # Sorted members keep rebuilds from producing a noisy git diff.
         with tarfile.open(out, "w:gz") as tf:
             for path in sorted(staged.root.rglob("*")):
                 tf.add(path, arcname=str(path.relative_to(staged.root)))

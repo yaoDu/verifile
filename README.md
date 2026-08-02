@@ -90,26 +90,36 @@ Full generated briefs for both pairs are committed in [`data/sample/`](data/samp
 [FY2026](data/sample/MSFT_10-K_2026-06-30_change_brief.md) ·
 [FY2025](data/sample/MSFT_10-K_2025-06-30_change_brief.md).
 
-## Screenshots
+## One finding, end to end
 
-All captured from a live run with **no API key configured**, on the pinned FY2025/FY2024 pair. Full
-index in [`docs/screenshots/`](docs/screenshots/README.md).
+All four images are consecutive views of the same live run on the deployed app — MSFT FY2026 vs FY2025,
+`deepseek-v4-flash`, 12.2 s. They are here in order because the point is not any single view; it is that
+you can follow one number from the filing to the interpretation and back.
 
-**The financial snapshot — every figure calculated in Python, with the capex/FCF divergence visible**
+**1. Python computes.** 21 of 21 metrics, 449 evidence chunks. No model has been called yet — this view
+is identical with the key removed.
 
-![Financial snapshot](docs/screenshots/03-financial-snapshot-capex.jpg)
+![Financial snapshot](docs/screenshots/01-financial-snapshot.jpg)
 
-**A material change, with earlier and later evidence side by side and full SEC provenance on both**
+**2. The finding.** Capital expenditure **+79.62%**, capex ÷ revenue **+12.03 pp** — and estimated free
+cash flow **−6.46%**. Spending nearly doubled while the cash it generates fell. Note the units: levels
+get a percentage, ratios get percentage *points*, computed by different code paths because conflating
+them is a classic quiet error.
 
-![Material change](docs/screenshots/04-material-change-side-by-side.jpg)
+![Capex divergence](docs/screenshots/02-capex-divergence.jpg)
 
-**Honest refusal — the system declines and shows the measured signals behind the decision**
+**3. The model interprets — and writes no numbers.** It contributes the claim and the *why*
+("a structural shift in capital allocation toward AI-driven infrastructure that is not yet reflected in
+free cash flow"). Every figure beneath it comes from step 2, restated by the deterministic layer, not by
+the model. Earlier and later evidence sit side by side, each carrying its section and accession number.
 
-![Insufficient evidence](docs/screenshots/06-insufficient-evidence.jpg)
+![Material change with AI interpretation](docs/screenshots/03-material-change-ai.jpg)
 
-**Item 1A risk-factor heading diff**
+**4. The receipt.** Model, prompt version, latency and token counts for both calls. Any citation the
+gates rejected and any claim they discarded would be listed here too — on this run, neither, because the
+model never reached for a number it had not been given.
 
-![Risk factor diff](docs/screenshots/05-risk-factor-diff.jpg)
+![Model run log](docs/screenshots/04-model-run-log.jpg)
 
 ---
 

@@ -33,16 +33,14 @@ T = TypeVar("T", bound=BaseModel)
 
 PROMPT_VERSION = "2026-07-30.1"
 
-# The single tool used to carry structured output. Its name is arbitrary but is
-# referenced by both the request and the response reader, so it lives here.
 _TOOL_NAME = "record_analysis"
 
 
 def _tool_input(resp: object) -> dict | None:
     """Return the input of the first ``tool_use`` block, or None.
 
-    Written defensively because the response is provider-shaped: a compatible
-    endpoint may return text alongside (or instead of) the forced tool call.
+    A compatible endpoint may return text alongside, or instead of, the forced
+    tool call.
     """
     for block in getattr(resp, "content", None) or []:
         if getattr(block, "type", None) == "tool_use":
@@ -103,15 +101,9 @@ class LlmClient:
         failure — so a bad model response degrades to the deterministic path
         instead of surfacing junk.
 
-        The schema is enforced with a single forced tool call rather than the
-        Messages API's structured-output parameter. DeepSeek's Anthropic
-        endpoint accepts ``output_config.effort`` but ignores
-        ``output_config.format``, so ``messages.parse()`` would return
-        unconstrained prose that then fails validation on every call. Tool
-        definitions *are* honoured, so the schema travels as a tool
-        ``input_schema`` and ``tool_choice`` forces the model to fill it in —
-        the standard idiom before structured outputs existed, and portable
-        across both providers.
+        The schema rides a forced tool call rather than
+        ``output_config.format``, which DeepSeek ignores — sending it that way
+        returns unconstrained prose that fails validation on every request.
         """
         started = time.perf_counter()
         if not self.available:
@@ -136,14 +128,8 @@ class LlmClient:
                 system=system,
                 output_config={"effort": self.settings.llm_effort},
                 messages=[{"role": "user", "content": user}],
-                # Thinking mode rejects a forced tool_choice ("Thinking mode
-                # does not support this tool_choice"), and the forced call is
-                # what carries the schema, so thinking is turned off rather
-                # than the constraint loosened. The same restriction exists on
-                # Anthropic's own API. This is a fair trade here: the model is
-                # interpreting measurements that Python already computed, not
-                # deriving them, and a fixed effort with no thinking is the
-                # more reproducible of the two.
+                # Thinking mode rejects a forced tool_choice on both providers,
+                # and the forced call is what carries the schema.
                 thinking={"type": "disabled"},
                 tools=[
                     {
@@ -170,8 +156,8 @@ class LlmClient:
                 if payload is None:
                     error = "The model returned no structured tool call."
                 else:
-                    # Validates here rather than trusting the model: a forced
-                    # tool call constrains the shape, it does not guarantee it.
+                    # A forced tool call constrains the shape; it does not
+                    # guarantee it.
                     parsed = schema.model_validate(payload)
         except ValidationError as exc:
             error = f"Model output failed schema validation: {exc.error_count()} error(s)."
