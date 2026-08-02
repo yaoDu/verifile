@@ -11,7 +11,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -36,7 +36,14 @@ class Settings(BaseSettings):
         alias="SEC_USER_AGENT",
     )
 
-    api_key: str = Field(default="", alias="API_KEY")
+    # `API_KEY` is the documented name. `ANTHROPIC_API_KEY` is also accepted
+    # because it is the SDK's own convention and is often already set in the
+    # environment — silently ignoring a correctly-set key is a bad failure mode,
+    # since the app degrades to deterministic mode and looks like it is working.
+    api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("API_KEY", "ANTHROPIC_API_KEY"),
+    )
     llm_model: str = Field(default="claude-opus-5", alias="FCA_LLM_MODEL")
     llm_max_tokens: int = Field(default=8000, alias="FCA_LLM_MAX_TOKENS")
     # Current Claude models reject `temperature`; reproducibility is controlled
