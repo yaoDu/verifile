@@ -10,7 +10,7 @@
   "notes": [
     "Ground-truth values were read by hand from Microsoft's FY2025 Form 10-K (accession 0000950170-25-100235) and the FY2024 Form 10-K (accession 0000950170-24-087843).",
     "Percentage-change and percentage-point expectations were computed by hand from those two filings, not copied from this tool's output.",
-    "Questions marked llm_required are only scored when ANTHROPIC_API_KEY is set; otherwise they are reported as not measured.",
+    "Questions marked llm_required are only scored when API_KEY is set; otherwise they are reported as not measured.",
     "The four insufficient-evidence questions are split deliberately: q19/q23/q24 are vocabulary-level gaps a lexical gate can detect without a model, while q20/q21/q22 are fact-level gaps whose words all appear in the filings and which therefore require the model to decline correctly."
   ],
   "questions": [

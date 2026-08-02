@@ -197,27 +197,6 @@ def test_client_never_logs_the_key():
     assert "secret" not in run.model_dump_json()
 
 
-def test_either_key_variable_name_is_accepted(monkeypatch):
-    """`ANTHROPIC_API_KEY` is the SDK's own convention and is often already set.
-
-    Reading only `API_KEY` meant a correctly-configured key was silently ignored
-    and the app degraded to deterministic mode while looking healthy — the worst
-    kind of failure, because nothing reports it.
-    """
-    from filing_change_analyst.config import Settings
-
-    for name in ("API_KEY", "ANTHROPIC_API_KEY"):
-        monkeypatch.delenv(name, raising=False)
-    assert not Settings(_env_file=None).llm_available
-
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-from-sdk-convention")
-    assert Settings(_env_file=None).llm_available
-
-    # The documented name wins when both are present.
-    monkeypatch.setenv("API_KEY", "sk-ant-documented")
-    assert Settings(_env_file=None).api_key == "sk-ant-documented"
-
-
 def test_model_failure_degrades_to_a_log_not_an_exception(monkeypatch):
     client = LlmClient(api_key="sk-ant-test")
 
