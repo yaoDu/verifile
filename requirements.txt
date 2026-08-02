@@ -1,0 +1,17 @@
+# Runtime dependencies for the hosted Streamlit deployment.
+#
+# This mirrors the `dependencies` list in pyproject.toml. Streamlit Community
+# Cloud installs from requirements.txt, and `app.py` puts `src/` on sys.path
+# itself, so the package does not need to be pip-installed on the host.
+#
+# For local development prefer `pip install -e ".[dev]"`, which also brings in
+# pytest and ruff.
+
+httpx>=0.27
+pydantic>=2.7
+pydantic-settings>=2.3
+pandas>=2.2
+beautifulsoup4>=4.12
+lxml>=5.2
+streamlit>=1.36
+anthropic>=0.40

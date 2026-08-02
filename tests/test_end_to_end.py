@@ -2,7 +2,7 @@
 
 Loads the default company, selects a filing pair, calculates metrics, retrieves
 evidence, detects changes and exports the Markdown brief — the exact path the
-interview demo follows.
+demo walkthrough follows.
 """
 
 from __future__ import annotations

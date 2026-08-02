@@ -5,6 +5,7 @@ Run with:  streamlit run app.py
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -13,6 +14,31 @@ if str(SRC) not in sys.path:  # allow `streamlit run app.py` without installing
     sys.path.insert(0, str(SRC))
 
 import streamlit as st  # noqa: E402
+
+
+def _bridge_secrets_to_env() -> None:
+    """Copy Streamlit secrets into the process environment.
+
+    Settings are read from the environment (or a local ``.env``) by
+    ``pydantic-settings``, which knows nothing about ``st.secrets``. Hosted
+    deployments have no ``.env`` — they inject configuration through the
+    platform's secrets store — so the two have to be joined up before
+    :func:`get_settings` builds its cached ``Settings``.
+
+    Only upper-case scalars are copied, and an existing environment variable
+    always wins, so a local ``.env`` still overrides the deployment. Values are
+    never logged; ``config.py`` is the only place they are read.
+    """
+    try:
+        items = list(st.secrets.items())
+    except Exception:  # noqa: BLE001 — no secrets file configured; that is fine
+        return
+    for key, value in items:
+        if key.isupper() and isinstance(value, str | int | float | bool):
+            os.environ.setdefault(key, str(value))
+
+
+_bridge_secrets_to_env()
 
 from filing_change_analyst.analytics.metric_definitions import (  # noqa: E402
     FREE_CASH_FLOW_DEFINITION,
@@ -29,6 +55,7 @@ from filing_change_analyst.research.change_detection import risk_change_summary 
 from filing_change_analyst.research.qa import SUGGESTED_QUESTIONS, answer_question  # noqa: E402
 from filing_change_analyst.sec.client import SecError  # noqa: E402
 from filing_change_analyst.services.cache import DiskCache  # noqa: E402
+from filing_change_analyst.services.demo_cache import seed_demo_cache  # noqa: E402
 from filing_change_analyst.services.llm import LlmClient  # noqa: E402
 from filing_change_analyst.ui import components as ui  # noqa: E402
 
@@ -40,6 +67,15 @@ st.set_page_config(
     page_icon="📑",
     layout="wide",
 )
+
+
+@st.cache_resource(show_spinner="Unpacking the bundled SEC cache…")
+def _warm_cache() -> dict:
+    """Unpack the bundled SEC responses once per container. No-op when warm."""
+    return seed_demo_cache()
+
+
+cache_state = _warm_cache()
 
 
 # --------------------------------------------------------------------------- #
@@ -97,6 +133,13 @@ with st.sidebar:
         )
     stats = DiskCache().stats()
     st.caption(f"Cache: {stats['entries']} entries, {stats['bytes'] / 1e6:.1f} MB")
+    if cache_state.get("seeded"):
+        st.caption(
+            "Warm-started from the SEC responses bundled in the repository, so the demo "
+            "renders on the first click. These are the raw bytes EDGAR returned — every "
+            "figure is still computed from them at request time. Tick **Bypass cache** "
+            "above to force a live fetch and check that for yourself."
+        )
     st.caption("Research aid only. Not investment advice.")
 
 
@@ -148,6 +191,12 @@ versus the previous comparable one, and what evidence supports each conclusion?*
 
 Pick a ticker in the sidebar and press **Compare latest filings**. The default is a
 Microsoft 10-K year-over-year comparison.
+
+**Suggested tickers.** Any US filer with a 10-K works, fetched live from EDGAR.
+`MSFT`, `AAPL`, `NVDA` and `PG` have their SEC responses pre-warmed in this
+deployment and return in a few seconds. `PG` is worth a look precisely because it is
+where the system is *weakest* — its 10-K carries no item numbers, so section
+extraction falls back to a low-confidence strategy and says so on screen.
 
 **How it works**
 

@@ -1,5 +1,11 @@
 # Evidence-First Filing Change Analyst
 
+[![Live demo](https://img.shields.io/badge/live%20demo-open%20the%20app-1f4e79?style=flat-square)](LIVE_DEMO_URL)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-162%20offline-2e7d32?style=flat-square)](tests/)
+[![Runs without an API key](https://img.shields.io/badge/runs%20without%20an%20API%20key-yes-2e7d32?style=flat-square)](#running-without-an-llm)
+
 **What materially changed in this company's latest SEC filing versus the previous comparable one — and what evidence supports every conclusion?**
 
 A working prototype for a fundamental equity team. It compares two consecutive SEC filings, calculates
@@ -7,6 +13,17 @@ every financial change in Python, retrieves matched earlier/later evidence for e
 produces a citation-backed analyst brief that visibly separates verified facts from model interpretation.
 
 > Research aid, not investment advice. No recommendations, no price targets, no predictions.
+
+### ▶ Try it
+
+**[LIVE_DEMO_URL](LIVE_DEMO_URL)** — no signup, no key, nothing to install.
+
+Press **Compare latest filings** for the default Microsoft 10-K year-over-year comparison.
+`MSFT`, `AAPL`, `NVDA` and `PG` are pre-warmed and return in a few seconds; any other US filer with a
+10-K is fetched live from EDGAR. The hosted instance runs **without an API key**, which is the honest
+configuration — every number, every citation and the entire material-change list on that deployment are
+produced deterministically in Python, with no model involved. See
+[Running without an LLM](#running-without-an-llm).
 
 ---
 
@@ -101,7 +118,8 @@ index in [`docs/screenshots/`](docs/screenshots/README.md).
 Requires Python 3.11+.
 
 ```bash
-git clone <this repo> && cd evidence-first-filing-change-analyst
+git clone https://github.com/yaoDu/evidence-first-filing-change-analyst.git
+cd evidence-first-filing-change-analyst
 
 python -m venv .venv && source .venv/bin/activate     # or: uv venv && source .venv/bin/activate
 pip install -e ".[dev]"                               # or: uv pip install -e ".[dev]"
@@ -116,7 +134,7 @@ streamlit run app.py
 Then press **Compare latest filings**. The default is MSFT 10-K year-over-year.
 
 ```bash
-pytest                              # 151 tests, fully offline, ~2s
+pytest                              # 162 tests, fully offline, ~2.5s
 ruff check src tests app.py         # lint
 python evaluation/run_evaluation.py # 22 questions against the pinned MSFT FY2025/FY2024 pair
 python evaluation/run_evaluation.py --latest-pair   # score against today's latest pair instead
@@ -437,7 +455,7 @@ filing contains and which made well-phrased questions look unanswerable. That se
 
 ## Testing
 
-151 tests, all offline, ~2 s. Fixtures are trimmed real SEC captures (submissions and companyfacts for
+162 tests, all offline, ~2.5 s. Fixtures are trimmed real SEC captures (submissions and companyfacts for
 CIK 0000789019) plus two synthetic miniature 10-Ks. No test touches the network or needs an API key.
 
 | Area | Covers |
@@ -450,14 +468,20 @@ CIK 0000789019) plus two synthetic miniature 10-Ks. No test touches the network 
 | `test_qa_gating.py` | content-term extraction, decline gate on both signals, risk-question routing, no-LLM behaviour |
 | `test_rendering_safety.py` | AST check that no module enables raw-HTML rendering, entity-decoding premise, hostile excerpt survives the pipeline as inert text |
 | `test_filing_discovery.py` | older-submissions-shard fallback for high-volume filers, accession dedupe, shard-fetch failure, registrants with no filing history |
+| `test_demo_cache.py` | bundled-cache seeding, byte-identical payload round-trip, warm caches never overwritten, idempotence, and refusal of traversal/absolute/symlink archive members |
 | `test_end_to_end.py` | full pipeline offline, brief structure and provenance, reproducibility, incompatible pairs, a simulated SEC outage |
 
 ---
 
 ## Security and reliability
 
-* Secrets and SEC identity come from the environment; `.env` is gitignored and nothing sensitive is
-  defaulted into source. The API key is never written to a log or run record (there is a test for it).
+* Secrets and SEC identity come from the environment; `.env` and `.streamlit/secrets.toml` are gitignored
+  and nothing sensitive is defaulted into source. The API key is never written to a log or run record
+  (there is a test for it). The public deployment carries no key at all.
+* The bundled cache archive is validated before extraction — traversal paths, absolute paths, symlinks and
+  device nodes are refused rather than trusted, and a corrupt or hostile archive degrades to a slower cold
+  start instead of writing outside the cache directory. It arrives over the same clone as the code, so it
+  gets the same scrutiny as any other untrusted input.
 * SEC calls are identified, throttled below the fair-access ceiling, given a 30-second timeout and bounded
   retries with exponential backoff, and fall back to a stale cache entry rather than failing the demo.
 * Filing HTML is stripped to text on ingest and never re-rendered as markup. Streamlit's raw-HTML
@@ -557,17 +581,22 @@ src/filing_change_analyst/
   analytics/  metric_definitions.py period_matching.py comparisons.py validation.py
   retrieval/  chunking.py index.py search.py citations.py
   research/   prompts.py change_detection.py synthesis.py qa.py brief.py
-  services/   cache.py llm.py
+  services/   cache.py llm.py demo_cache.py
   ui/         components.py
-tests/                              131 offline tests + fixtures
+tests/                              162 offline tests + fixtures
 evaluation/                         questions.json, run_evaluation.py, RESULTS.md
-docs/                               architecture, limitations, interview demo, screenshots
+docs/                               architecture, limitations, demo walkthrough, screenshots
 data/sample/                        committed sample analyst brief
+data/demo_cache.tar.gz              pre-warmed SEC responses for the hosted demo
+scripts/build_demo_cache.py         regenerates that archive from a warm local cache
+requirements.txt                    runtime deps for the hosted deployment
+.streamlit/config.toml              deployment configuration (no secrets)
 ```
 
 ## Assumptions recorded during the build
 
-* Microsoft is the default company, as suggested in the brief. Microsoft filed its FY2026 10-K
+* Microsoft is the default company: a large, well-tagged filer with a clean XBRL history, which makes it
+  the fairest starting point for a reviewer who has never seen the tool. Microsoft filed its FY2026 10-K
   (`0001193125-26-323660`) during the build, so the live default pair moved from FY2025/FY2024 to
   FY2026/FY2025 mid-session. The evaluation is pinned by accession to FY2025 (`0000950170-25-100235`)
   vs FY2024 (`0000950170-24-087843`) so its hand-read ground truth stays valid; `--latest-pair`
@@ -580,6 +609,69 @@ data/sample/                        committed sample analyst brief
   recycled into an apparently long change list.
 * The change list is capped at 8 and is allowed to be short. Nothing is padded.
 
+## Deployment
+
+The hosted demo runs on [Streamlit Community Cloud](https://share.streamlit.io) from the `main` branch of
+this repository. To stand up your own copy:
+
+1. Fork this repository.
+2. At [share.streamlit.io](https://share.streamlit.io), create an app pointing at your fork, with
+   `app.py` as the entrypoint and Python **3.11** or newer.
+3. Under *Advanced settings → Secrets*, set your SEC identity — SEC blocks unidentified automated
+   clients, so this is required, not optional:
+
+   ```toml
+   SEC_USER_AGENT = "Your Name your.email@example.com"
+   ```
+
+   `ANTHROPIC_API_KEY` is optional. Leave it out and the app runs in deterministic-only mode, which is
+   how the public instance is configured: no key means no model spend and no abuse surface on a
+   link anyone can open.
+
+`app.py` copies Streamlit secrets into the process environment before settings are built, so the same
+configuration works locally through `.env` and on the host through the secrets store, with the local
+`.env` taking precedence.
+
+### Why the demo is fast
+
+A cold run pulls ~30 MB from EDGAR, and SEC rate-limits by IP — a shared cloud host is not a friendly IP
+to share. So `data/demo_cache.tar.gz` ships the SEC responses for the four demo tickers, and
+`services/demo_cache.py` unpacks them into the HTTP cache on first boot. Seeding is skipped whenever the
+cache already holds entries, so it never overwrites a warm local cache or affects the test suite.
+
+What is bundled is **the raw bytes EDGAR returned**, keyed by request URL — not canned output. Sections
+are still extracted, facts still selected and every figure still computed at request time. Tick
+**Bypass cache** in the sidebar to force a live re-fetch and confirm that. Rebuild the archive with
+`python scripts/build_demo_cache.py`.
+
+---
+
+## Authorship and provenance
+
+Author: **Yao Du** ([@yaoDu](https://github.com/yaoDu)). Independent portfolio project, built from
+scratch; there is no upstream repository and this is not a fork.
+
+Four independent ways to verify that:
+
+| Check | What it shows |
+|---|---|
+| `git log --show-signature` | Every commit is **cryptographically signed** with the author's SSH key. GitHub renders this as a **Verified** badge. Anyone can type any name into a git author field — a valid signature is the part that cannot be forged without the private key. |
+| [`CITATION.cff`](CITATION.cff) | Machine-readable authorship metadata. GitHub renders it as a *Cite this repository* panel on the repository home page. |
+| [`LICENSE`](LICENSE) | MIT, © 2026 Yao Du. Grants reuse with attribution while the copyright itself stays asserted. |
+| Commit history | The full build is in the history — five substantive commits, including the coverage sweep that found three real defects and the code-review pass that fixed a rendering bug. Development history is much harder to fabricate after the fact than a finished snapshot. |
+
+To verify the signatures yourself:
+
+```bash
+git clone https://github.com/yaoDu/evidence-first-filing-change-analyst.git
+cd evidence-first-filing-change-analyst
+git log --show-signature      # or check the Verified badge on any commit on GitHub
+```
+
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT — see [`LICENSE`](LICENSE). Copyright © 2026 Yao Du.
+
+You may use, modify and distribute this code, including commercially, provided the copyright notice and
+licence text are retained. The software is provided without warranty; it is a research prototype, not
+investment advice, and it makes no recommendations.

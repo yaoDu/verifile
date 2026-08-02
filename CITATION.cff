@@ -1,0 +1,33 @@
+# Citation File Format — https://citation-file-format.github.io
+# GitHub renders this as a "Cite this repository" panel on the repo home page,
+# which is the clearest machine-readable statement of authorship a repository
+# can carry.
+cff-version: 1.2.0
+title: Evidence-First Filing Change Analyst
+message: >-
+  If you reference or reuse this work, please cite it using the metadata below.
+type: software
+authors:
+  - family-names: Du
+    given-names: Yao
+    alias: yaoDu
+repository-code: https://github.com/yaoDu/evidence-first-filing-change-analyst
+url: https://github.com/yaoDu/evidence-first-filing-change-analyst
+abstract: >-
+  A working prototype for fundamental equity research that compares a company's
+  two most recent comparable SEC filings. All financial arithmetic is performed
+  deterministically in Python from XBRL facts with auditable provenance; matched
+  earlier and later evidence is retrieved for every claimed change; and any
+  language-model contribution is constrained by schema, citation, numeric
+  grounding and no-recommendation gates before it can be displayed. Research
+  aid only, not investment advice.
+keywords:
+  - SEC EDGAR
+  - XBRL
+  - equity research
+  - retrieval-augmented generation
+  - evidence-based AI
+  - provenance
+license: MIT
+version: 0.1.0
+date-released: '2026-08-03'

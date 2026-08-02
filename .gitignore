@@ -2,6 +2,12 @@
 .venv/
 .cache/
 data/cache/
+
+# Local Streamlit secrets. The committed .streamlit/config.toml is deployment
+# configuration and carries nothing sensitive; secrets.toml is the file that
+# would, and it must never be committed.
+.streamlit/secrets.toml
+
 __pycache__/
 *.pyc
 .pytest_cache/

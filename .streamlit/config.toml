@@ -1,0 +1,26 @@
+# Streamlit configuration for the hosted demo.
+#
+# Kept deliberately small: only settings that change how the deployed app
+# behaves for a first-time visitor.
+
+[server]
+# Filing HTML is stripped to text on ingest and this app uploads nothing, so the
+# uploader is dead weight on a public deployment. Keep the limit low.
+maxUploadSize = 5
+
+[browser]
+# No usage statistics from the hosted demo.
+gatherUsageStats = false
+
+[client]
+# A visitor should never see a Python traceback. Errors are already caught in
+# app.py and re-rendered as user-facing messages.
+showErrorDetails = "none"
+toolbarMode = "minimal"
+
+[theme]
+base = "light"
+primaryColor = "#1f4e79"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f2f5f9"
+textColor = "#1a1a1a"

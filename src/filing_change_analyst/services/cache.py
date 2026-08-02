@@ -4,7 +4,7 @@ Two reasons this exists:
 
 1. SEC fair-access — repeated demo runs must not re-hammer EDGAR.
 2. Reproducibility — a cached run produces byte-identical evidence, which is
-   what makes the interview demo and the evaluation suite deterministic.
+   what makes the demo walkthrough and the evaluation suite deterministic.
 """
 
 from __future__ import annotations
