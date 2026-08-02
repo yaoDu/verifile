@@ -263,6 +263,9 @@ def test_schema_travels_as_a_forced_tool_call(monkeypatch):
     assert sent["tool_choice"]["name"] == sent["tools"][0]["name"]
     # effort is the one output_config field the endpoint does honour
     assert "effort" in sent["output_config"]
+    # Thinking mode rejects a forced tool_choice on both providers, and the
+    # forced call is what carries the schema, so thinking must be off.
+    assert sent["thinking"] == {"type": "disabled"}
 
 
 def test_tool_input_is_validated_not_trusted(monkeypatch):

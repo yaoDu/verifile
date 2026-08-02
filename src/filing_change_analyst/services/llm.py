@@ -136,6 +136,15 @@ class LlmClient:
                 system=system,
                 output_config={"effort": self.settings.llm_effort},
                 messages=[{"role": "user", "content": user}],
+                # Thinking mode rejects a forced tool_choice ("Thinking mode
+                # does not support this tool_choice"), and the forced call is
+                # what carries the schema, so thinking is turned off rather
+                # than the constraint loosened. The same restriction exists on
+                # Anthropic's own API. This is a fair trade here: the model is
+                # interpreting measurements that Python already computed, not
+                # deriving them, and a fixed effort with no thinking is the
+                # more reproducible of the two.
+                thinking={"type": "disabled"},
                 tools=[
                     {
                         "name": _TOOL_NAME,
