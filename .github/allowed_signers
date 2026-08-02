@@ -1,0 +1,11 @@
+# Public keys trusted to sign commits in this repository.
+#
+# Enables `git log --show-signature` to verify signatures locally:
+#
+#     git config gpg.ssh.allowedSignersFile .github/allowed_signers
+#     git log --show-signature
+#
+# Only public keys appear here. The same key is served by GitHub at
+# https://github.com/yaoDu.keys, so it can be cross-checked independently.
+
+76980641+yaoDu@users.noreply.github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJsKoPimf0v0TAI4JH0bVhH/bqzhaNSYmn1+4HJqbkWV

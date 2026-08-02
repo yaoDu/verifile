@@ -660,13 +660,24 @@ Four independent ways to verify that:
 | [`LICENSE`](LICENSE) | MIT, © 2026 Yao Du. Grants reuse with attribution while the copyright itself stays asserted. |
 | Commit history | The full build is in the history — five substantive commits, including the coverage sweep that found three real defects and the code-review pass that fixed a rendering bug. Development history is much harder to fabricate after the fact than a finished snapshot. |
 
-To verify the signatures yourself:
+The quickest check needs no setup at all: open any commit on GitHub and look for the **Verified** badge.
+
+To verify the signatures yourself from a clone, point git at the public keys trusted to sign here.
+SSH signature verification requires this — without an allowed-signers file git reports *"gpg.ssh
+.allowedSignersFile needs to be configured"* rather than a bad signature:
 
 ```bash
 git clone https://github.com/yaoDu/evidence-first-filing-change-analyst.git
 cd evidence-first-filing-change-analyst
-git log --show-signature      # or check the Verified badge on any commit on GitHub
+
+git config gpg.ssh.allowedSignersFile .github/allowed_signers
+git log --show-signature
+# Good "git" signature for 76980641+yaoDu@users.noreply.github.com with ED25519 key SHA256:eJvaEl/…
 ```
+
+[`.github/allowed_signers`](.github/allowed_signers) contains only a public key. Cross-check it against
+the copy GitHub serves independently at [github.com/yaoDu.keys](https://github.com/yaoDu.keys) — if the
+two agree, the signatures were made by the holder of that account's private key.
 
 ## License
 
