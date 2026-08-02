@@ -26,8 +26,9 @@ One page. Every entry states what breaks, how it shows up, and what the system d
 
 ## The largest untested surface
 
-**The prompts have not been tuned against real model output.** The transport has been exercised end
-to end against the live endpoint, but prompt quality has not been measured. `research/synthesis.py` and the LLM branch of `research/qa.py` are validated with a stubbed
+**The prompts have not been tuned against real model output.** One live end-to-end run on
+`deepseek-v4-flash` produced schema-valid output that passed every gate, with no figure written by
+the model. That is evidence the path works, not a measurement of prompt quality. `research/synthesis.py` and the LLM branch of `research/qa.py` are validated with a stubbed
 client. That stub does exercise every gate — a fabricated citation, a single-period citation, an invented
 `$91.4 billion`, and "investors should buy the stock" are each asserted to be discarded, and timeout,
 refusal and truncation each resolve to a run-log entry rather than an exception. What is *not* validated

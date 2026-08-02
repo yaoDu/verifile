@@ -569,9 +569,11 @@ Honest and specific. Full list with mitigations in [`docs/limitations.md`](docs/
    asserted to be discarded — plus timeout, refusal, truncation, malformed tool payloads and a
    text-only reply. What they cannot cover is whether the prompts elicit *good* interpretation from a
    given model, and the three `llm_required` evaluation questions are still reported as *not measured*.
-   The transport has been exercised end to end against the live endpoint; the prompt quality has not.
-   This remains the largest untested surface in the project, and it is model-dependent — re-check it
-   after changing `FCA_LLM_MODEL`.
+   The path has been exercised end to end against the live endpoint on `deepseek-v4-flash`: both
+   synthesis calls returned schema-valid output, the gates discarded nothing, and the model wrote
+   prose without writing a single figure — every number in the rendered change came from the
+   deterministic layer. That is one run on one pair, not a measurement. Prompt quality is still
+   unscored and is model-dependent — re-check it after changing `FCA_LLM_MODEL`.
 10. **This is a prototype.** Not institutional-grade, not production-ready, and it does not eliminate
    hallucination — it constrains, checks and labels model output, and reports what it could not verify.
 
