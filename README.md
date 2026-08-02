@@ -1,6 +1,6 @@
 # verifile — Evidence-First Filing Change Analyst
 
-[![Live demo](https://img.shields.io/badge/live%20demo-open%20the%20app-1f4e79?style=flat-square)](LIVE_DEMO_URL)
+[![Live demo](https://img.shields.io/badge/live%20demo-open%20the%20app-1f4e79?style=flat-square)](https://verifile.streamlit.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-162%20offline-2e7d32?style=flat-square)](tests/)
@@ -16,7 +16,7 @@ produces a citation-backed analyst brief that visibly separates verified facts f
 
 ### ▶ Try it
 
-**[LIVE_DEMO_URL](LIVE_DEMO_URL)** — no signup, no key, nothing to install.
+**[verifile.streamlit.app](https://verifile.streamlit.app)** — no signup, no key, nothing to install.
 
 Press **Compare latest filings** for the default Microsoft 10-K year-over-year comparison.
 `MSFT`, `AAPL`, `NVDA` and `PG` are pre-warmed and return in a few seconds; any other US filer with a
