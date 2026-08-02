@@ -3,7 +3,7 @@
 [![Live demo](https://img.shields.io/badge/live%20demo-open%20the%20app-1f4e79?style=flat-square)](https://verifile.streamlit.app)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-162%20offline-2e7d32?style=flat-square)](tests/)
+[![Tests](https://img.shields.io/badge/tests-165%20offline-2e7d32?style=flat-square)](tests/)
 [![Runs without an API key](https://img.shields.io/badge/runs%20without%20an%20API%20key-yes-2e7d32?style=flat-square)](#running-without-an-llm)
 
 **What materially changed in this company's latest SEC filing versus the previous comparable one — and what evidence supports every conclusion?**
@@ -134,7 +134,7 @@ streamlit run app.py
 Then press **Compare latest filings**. The default is MSFT 10-K year-over-year.
 
 ```bash
-pytest                              # 162 tests, fully offline, ~2.5s
+pytest                              # 165 tests, fully offline, ~2.5s
 ruff check src tests app.py         # lint
 python evaluation/run_evaluation.py # 22 questions against the pinned MSFT FY2025/FY2024 pair
 python evaluation/run_evaluation.py --latest-pair   # score against today's latest pair instead
@@ -302,6 +302,22 @@ Leave `API_KEY` empty. The app states plainly that AI synthesis is disabled and 
 Only the interpretive sections (executive summary, bull/bear, questions for management) are omitted, and
 the brief says so where they would have been.
 
+### Which model, and why the schema rides a tool
+
+The default is **`deepseek-v4-flash`** via DeepSeek's Anthropic-compatible Messages API
+(`https://api.deepseek.com/anthropic`), so the `anthropic` SDK is used unchanged. Set
+`FCA_LLM_BASE_URL=https://api.anthropic.com` and `FCA_LLM_MODEL=claude-opus-5` to run against Claude
+instead; nothing else changes.
+
+One compatibility difference is load-bearing. That endpoint honours `output_config.effort` but
+**ignores `output_config.format`**, so the Messages API's structured-output parameter cannot enforce the
+schema — a `messages.parse()` call would return unconstrained prose and fail validation on every
+request. Tool definitions *are* honoured, so the Pydantic schema travels as a tool `input_schema` and
+`tool_choice` forces the model to fill it in. The reply is still validated on arrival rather than
+trusted: a forced tool call constrains the shape, it does not guarantee it. `test_llm_guardrails.py`
+asserts the request shape, so this cannot silently regress into the form that looks correct locally and
+returns prose in production.
+
 ---
 
 ## Architecture
@@ -455,7 +471,7 @@ filing contains and which made well-phrased questions look unanswerable. That se
 
 ## Testing
 
-162 tests, all offline, ~2.5 s. Fixtures are trimmed real SEC captures (submissions and companyfacts for
+165 tests, all offline, ~2.5 s. Fixtures are trimmed real SEC captures (submissions and companyfacts for
 CIK 0000789019) plus two synthetic miniature 10-Ks. No test touches the network or needs an API key.
 
 | Area | Covers |
@@ -464,7 +480,7 @@ CIK 0000789019) plus two synthetic miniature 10-Ks. No test touches the network 
 | `test_metrics.py` | values vs the filing, percent vs percentage-point changes, derived metrics, gross-profit fallback, missing data, zero denominators, sign flips, provenance completeness |
 | `test_sections_and_retrieval.py` | item extraction vs table-of-contents traps, section bleed, risk headings, chunk provenance and stability, BM25 filters, phrase-frequency overlap, metric-reuse cap |
 | `test_citations.py` | accession validation, EDGAR URL construction, fabricated-id rejection, both-period requirement, no page numbers |
-| `test_llm_guardrails.py` | schema validation, numeric grounding, recommendation detection, prompt-injection redaction, stubbed-model gates, failure/refusal handling, key never logged |
+| `test_llm_guardrails.py` | schema validation, numeric grounding, recommendation detection, prompt-injection redaction, stubbed-model gates, failure/refusal handling, key never logged, forced-tool request shape, text-only and invalid tool payloads |
 | `test_qa_gating.py` | content-term extraction, decline gate on both signals, risk-question routing, no-LLM behaviour |
 | `test_rendering_safety.py` | AST check that no module enables raw-HTML rendering, entity-decoding premise, hostile excerpt survives the pipeline as inert text |
 | `test_filing_discovery.py` | older-submissions-shard fallback for high-volume filers, accession dedupe, shard-fetch failure, registrants with no filing history |
@@ -547,13 +563,15 @@ Honest and specific. Full list with mitigations in [`docs/limitations.md`](docs/
    ticker to its predecessor entity.
 8. **10-Q support is structural only.** The comparability checks handle it; the metric catalogue and topic
    probes are tuned for annual filings.
-9. **The live model path has never been exercised against a real API.** No `API_KEY` was
-   available during the build, so `research/synthesis.py` and the LLM branch of `research/qa.py` are
-   validated only by stubbed-model tests. Those tests do cover all four gates — fabricated citations,
-   single-period citations, invented figures and recommendation language are each asserted to be
-   discarded — plus timeout, refusal and truncation handling. But the prompts themselves have not been
-   tuned against real model output, and the three `llm_required` evaluation questions are reported as
-   *not measured* for the same reason. This is the largest untested surface in the project.
+9. **The prompts have not been tuned against real model output.** `research/synthesis.py` and the LLM
+   branch of `research/qa.py` are validated by stubbed-model tests. Those cover all four gates —
+   fabricated citations, single-period citations, invented figures and recommendation language are each
+   asserted to be discarded — plus timeout, refusal, truncation, malformed tool payloads and a
+   text-only reply. What they cannot cover is whether the prompts elicit *good* interpretation from a
+   given model, and the three `llm_required` evaluation questions are still reported as *not measured*.
+   The transport has been exercised end to end against the live endpoint; the prompt quality has not.
+   This remains the largest untested surface in the project, and it is model-dependent — re-check it
+   after changing `FCA_LLM_MODEL`.
 10. **This is a prototype.** Not institutional-grade, not production-ready, and it does not eliminate
    hallucination — it constrains, checks and labels model output, and reports what it could not verify.
 
@@ -583,7 +601,7 @@ src/filing_change_analyst/
   research/   prompts.py change_detection.py synthesis.py qa.py brief.py
   services/   cache.py llm.py demo_cache.py
   ui/         components.py
-tests/                              162 offline tests + fixtures
+tests/                              165 offline tests + fixtures
 evaluation/                         questions.json, run_evaluation.py, RESULTS.md
 docs/                               architecture, limitations, demo walkthrough, screenshots
 data/sample/                        committed sample analyst brief

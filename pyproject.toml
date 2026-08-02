@@ -12,7 +12,7 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "lxml>=5.2",
     "streamlit>=1.36",
-    "anthropic>=0.40",
+    "anthropic>=0.40",  # Messages API client; also used against DeepSeek
 ]
 
 [project.optional-dependencies]

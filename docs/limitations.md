@@ -26,8 +26,8 @@ One page. Every entry states what breaks, how it shows up, and what the system d
 
 ## The largest untested surface
 
-**The live model path has never run against a real API.** No `API_KEY` was available during the
-build. `research/synthesis.py` and the LLM branch of `research/qa.py` are validated only with a stubbed
+**The prompts have not been tuned against real model output.** The transport has been exercised end
+to end against the live endpoint, but prompt quality has not been measured. `research/synthesis.py` and the LLM branch of `research/qa.py` are validated with a stubbed
 client. That stub does exercise every gate — a fabricated citation, a single-period citation, an invented
 `$91.4 billion`, and "investors should buy the stock" are each asserted to be discarded, and timeout,
 refusal and truncation each resolve to a run-log entry rather than an exception. What is *not* validated

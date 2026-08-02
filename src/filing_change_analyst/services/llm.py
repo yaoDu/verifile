@@ -1,4 +1,8 @@
-"""Thin, guarded wrapper around the Anthropic Messages API.
+"""Thin, guarded wrapper around the Messages API.
+
+Targets DeepSeek by default, which serves an Anthropic-compatible endpoint,
+so the `anthropic` SDK is used against either provider unchanged. The one
+behavioural difference that matters is structured output — see `structured`.
 
 Design rules enforced here:
 
@@ -29,6 +33,24 @@ T = TypeVar("T", bound=BaseModel)
 
 PROMPT_VERSION = "2026-07-30.1"
 
+# The single tool used to carry structured output. Its name is arbitrary but is
+# referenced by both the request and the response reader, so it lives here.
+_TOOL_NAME = "record_analysis"
+
+
+def _tool_input(resp: object) -> dict | None:
+    """Return the input of the first ``tool_use`` block, or None.
+
+    Written defensively because the response is provider-shaped: a compatible
+    endpoint may return text alongside (or instead of) the forced tool call.
+    """
+    for block in getattr(resp, "content", None) or []:
+        if getattr(block, "type", None) == "tool_use":
+            payload = getattr(block, "input", None)
+            if isinstance(payload, dict):
+                return payload
+    return None
+
 
 class LlmUnavailable(RuntimeError):
     """Raised when a model call is attempted without a configured key."""
@@ -57,6 +79,7 @@ class LlmClient:
 
             self._client = anthropic.Anthropic(
                 api_key=self._api_key,
+                base_url=self.settings.llm_base_url,
                 timeout=self.settings.llm_timeout,
                 max_retries=self.settings.llm_max_retries,
             )
@@ -79,6 +102,16 @@ class LlmClient:
         network error, timeout, refusal, truncation or schema-validation
         failure — so a bad model response degrades to the deterministic path
         instead of surfacing junk.
+
+        The schema is enforced with a single forced tool call rather than the
+        Messages API's structured-output parameter. DeepSeek's Anthropic
+        endpoint accepts ``output_config.effort`` but ignores
+        ``output_config.format``, so ``messages.parse()`` would return
+        unconstrained prose that then fails validation on every call. Tool
+        definitions *are* honoured, so the schema travels as a tool
+        ``input_schema`` and ``tool_choice`` forces the model to fill it in —
+        the standard idiom before structured outputs existed, and portable
+        across both providers.
         """
         started = time.perf_counter()
         if not self.available:
@@ -97,13 +130,23 @@ class LlmClient:
         parsed: T | None = None
         input_tokens = output_tokens = None
         try:
-            resp = self._anthropic().messages.parse(
+            resp = self._anthropic().messages.create(
                 model=self.model,
                 max_tokens=max_tokens or self.settings.llm_max_tokens,
                 system=system,
                 output_config={"effort": self.settings.llm_effort},
                 messages=[{"role": "user", "content": user}],
-                output_format=schema,
+                tools=[
+                    {
+                        "name": _TOOL_NAME,
+                        "description": (
+                            "Record the analysis. Every field is required; use the "
+                            "supplied evidence and metric values only."
+                        ),
+                        "input_schema": schema.model_json_schema(),
+                    }
+                ],
+                tool_choice={"type": "tool", "name": _TOOL_NAME},
             )
             usage = getattr(resp, "usage", None)
             input_tokens = getattr(usage, "input_tokens", None)
@@ -114,9 +157,13 @@ class LlmClient:
             elif stop == "max_tokens":
                 error = "The model response was truncated before it produced valid JSON."
             else:
-                parsed = resp.parsed_output  # type: ignore[assignment]
-                if parsed is None:
-                    error = "The model returned no parsable structured output."
+                payload = _tool_input(resp)
+                if payload is None:
+                    error = "The model returned no structured tool call."
+                else:
+                    # Validates here rather than trusting the model: a forced
+                    # tool call constrains the shape, it does not guarantee it.
+                    parsed = schema.model_validate(payload)
         except ValidationError as exc:
             error = f"Model output failed schema validation: {exc.error_count()} error(s)."
         except Exception as exc:  # noqa: BLE001 - degrade, never crash the app

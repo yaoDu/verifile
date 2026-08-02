@@ -37,10 +37,17 @@ class Settings(BaseSettings):
     )
 
     api_key: str = Field(default="", alias="API_KEY")
-    llm_model: str = Field(default="claude-opus-5", alias="FCA_LLM_MODEL")
+    llm_model: str = Field(default="deepseek-v4-flash", alias="FCA_LLM_MODEL")
+    # DeepSeek serves an Anthropic-compatible Messages API, so the `anthropic`
+    # SDK is used unchanged against this base URL. Point it at
+    # https://api.anthropic.com to run against Claude instead — the request
+    # shape is identical, but see `services/llm.py` on structured output.
+    llm_base_url: str = Field(
+        default="https://api.deepseek.com/anthropic", alias="FCA_LLM_BASE_URL"
+    )
     llm_max_tokens: int = Field(default=8000, alias="FCA_LLM_MAX_TOKENS")
-    # Current Claude models reject `temperature`; reproducibility is controlled
-    # with a fixed effort level and a versioned prompt instead.
+    # Reproducibility is controlled with a fixed effort level and a versioned
+    # prompt rather than a sampling temperature.
     llm_effort: str = Field(default="medium", alias="FCA_LLM_EFFORT")
     llm_timeout: float = Field(default=120.0, alias="FCA_LLM_TIMEOUT")
     llm_max_retries: int = Field(default=2, alias="FCA_LLM_MAX_RETRIES")

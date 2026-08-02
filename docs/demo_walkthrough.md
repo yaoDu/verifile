@@ -110,11 +110,11 @@ Now ask something real: *"What did management say about capital expenditures and
 Switch to the terminal:
 
 ```bash
-pytest -q                              # 162 passed in ~2.5s
+pytest -q                              # 165 passed in ~2.5s
 python evaluation/run_evaluation.py    # 21/21 scored, 3 not measured
 ```
 
-> "162 tests, fully offline, no API key needed. And a 22-question evaluation with ground truth read by
+> "165 tests, fully offline, no API key needed. And a 22-question evaluation with ground truth read by
 > hand from the filings — 100% on metric correctness, period correctness, retrieval and citation
 > validity. Three questions are reported as *not measured* rather than passed, because they need a model
 > to answer honestly. That's the whole philosophy: report what you measured, and say clearly what you

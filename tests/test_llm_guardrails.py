@@ -197,16 +197,42 @@ def test_client_never_logs_the_key():
     assert "secret" not in run.model_dump_json()
 
 
-def test_model_failure_degrades_to_a_log_not_an_exception(monkeypatch):
-    client = LlmClient(api_key="sk-ant-test")
+class _Block:
+    def __init__(self, type_, **kw):
+        self.type = type_
+        for k, v in kw.items():
+            setattr(self, k, v)
 
-    class Boom:
+
+def _fake_client(*, content=None, stop_reason="tool_use", raises=None, captured=None):
+    """A stand-in for the Anthropic SDK client, shaped like a real response."""
+
+    class Resp:
+        pass
+
+    resp = Resp()
+    resp.stop_reason = stop_reason
+    resp.usage = None
+    resp.content = content or []
+
+    class Fake:
         class messages:  # noqa: N801
             @staticmethod
-            def parse(**kwargs):
-                raise TimeoutError("read timed out")
+            def create(**kwargs):
+                if captured is not None:
+                    captured.update(kwargs)
+                if raises is not None:
+                    raise raises
+                return resp
 
-    monkeypatch.setattr(client, "_anthropic", lambda: Boom())
+    return Fake()
+
+
+def test_model_failure_degrades_to_a_log_not_an_exception(monkeypatch):
+    client = LlmClient(api_key="sk-ant-test")
+    monkeypatch.setattr(
+        client, "_anthropic", lambda: _fake_client(raises=TimeoutError("read timed out"))
+    )
     parsed, run = client.structured(system="s", user="u", schema=LlmChangeSet, purpose="x")
     assert parsed is None
     assert not run.ok and "TimeoutError" in run.error
@@ -214,21 +240,49 @@ def test_model_failure_degrades_to_a_log_not_an_exception(monkeypatch):
 
 def test_refusal_is_treated_as_a_failure(monkeypatch):
     client = LlmClient(api_key="sk-ant-test")
-
-    class Resp:
-        stop_reason = "refusal"
-        usage = None
-        parsed_output = None
-
-    class Fake:
-        class messages:  # noqa: N801
-            @staticmethod
-            def parse(**kwargs):
-                return Resp()
-
-    monkeypatch.setattr(client, "_anthropic", lambda: Fake())
+    monkeypatch.setattr(client, "_anthropic", lambda: _fake_client(stop_reason="refusal"))
     parsed, run = client.structured(system="s", user="u", schema=LlmChangeSet, purpose="x")
     assert parsed is None and "declined" in run.error
+
+
+def test_schema_travels_as_a_forced_tool_call(monkeypatch):
+    """DeepSeek ignores `output_config.format`, so the schema must ride a tool.
+
+    Sending it the old way would look fine locally and silently return
+    unconstrained prose in production, so the request shape is asserted.
+    """
+    client = LlmClient(api_key="sk-ant-test")
+    sent: dict = {}
+    monkeypatch.setattr(client, "_anthropic", lambda: _fake_client(captured=sent))
+    client.structured(system="s", user="u", schema=LlmChangeSet, purpose="x")
+
+    assert "output_format" not in sent, "structured-output param is not honoured by DeepSeek"
+    assert sent["tool_choice"]["type"] == "tool", "the tool call must be forced, not optional"
+    assert len(sent["tools"]) == 1
+    assert sent["tools"][0]["input_schema"] == LlmChangeSet.model_json_schema()
+    assert sent["tool_choice"]["name"] == sent["tools"][0]["name"]
+    # effort is the one output_config field the endpoint does honour
+    assert "effort" in sent["output_config"]
+
+
+def test_tool_input_is_validated_not_trusted(monkeypatch):
+    """A forced tool call constrains the shape; it does not guarantee it."""
+    client = LlmClient(api_key="sk-ant-test")
+    bad = _Block("tool_use", input={"changes": [{"headline": "missing required fields"}]})
+    monkeypatch.setattr(client, "_anthropic", lambda: _fake_client(content=[bad]))
+    parsed, run = client.structured(system="s", user="u", schema=LlmChangeSet, purpose="x")
+    assert parsed is None
+    assert not run.ok and "schema validation" in run.error
+
+
+def test_a_text_only_response_is_a_failure_not_a_crash(monkeypatch):
+    """A compatible endpoint may ignore tool_choice and just talk."""
+    client = LlmClient(api_key="sk-ant-test")
+    chatty = _Block("text", text="Here are the changes I found...")
+    monkeypatch.setattr(client, "_anthropic", lambda: _fake_client(content=[chatty]))
+    parsed, run = client.structured(system="s", user="u", schema=LlmChangeSet, purpose="x")
+    assert parsed is None
+    assert not run.ok and "no structured tool call" in run.error
 
 
 # --------------------------------------------------------------------------- #
