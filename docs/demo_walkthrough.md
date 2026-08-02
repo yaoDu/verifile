@@ -9,7 +9,7 @@ streamlit run app.py
 ```
 
 Have open: the app, and a terminal in the repo root.
-Decide in advance whether to demo **with** or **without** `ANTHROPIC_API_KEY` — the no-key run is the
+Decide in advance whether to demo **with** or **without** `API_KEY` — the no-key run is the
 stronger story, because it proves the product is not a wrapper.
 
 ---

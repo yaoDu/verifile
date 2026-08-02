@@ -26,7 +26,7 @@ One page. Every entry states what breaks, how it shows up, and what the system d
 
 ## The largest untested surface
 
-**The live model path has never run against a real API.** No `ANTHROPIC_API_KEY` was available during the
+**The live model path has never run against a real API.** No `API_KEY` was available during the
 build. `research/synthesis.py` and the LLM branch of `research/qa.py` are validated only with a stubbed
 client. That stub does exercise every gate — a fabricated citation, a single-period citation, an invented
 `$91.4 billion`, and "investors should buy the stock" are each asserted to be discarded, and timeout,

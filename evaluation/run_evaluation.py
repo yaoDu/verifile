@@ -4,7 +4,7 @@
 
 Runs against the live (cached) SEC data for the default MSFT 10-K pair, so the
 numbers in the report are real. Questions marked ``llm_required`` are reported
-as *not measured* when no ``ANTHROPIC_API_KEY`` is configured, rather than being
+as *not measured* when no ``API_KEY`` is configured, rather than being
 scored as passes.
 """
 

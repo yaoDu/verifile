@@ -328,7 +328,7 @@ _Not generated: AI synthesis is disabled or produced no valid output._
 - **[CAVEAT]** Emphasis deltas are phrase-frequency measures normalised per 10,000 tokens. They indicate prominence, not meaning, and can move because a filing was reorganised.
 - **[CAVEAT]** The year-over-year comparison uses each period as reported in its own filing. Where a restatement flag is shown, part of the change may be a reclassification.
 - **[CAVEAT]** Filing sections were located by heading convention — earlier filing `upper_case` (high confidence), later filing `upper_case` (high confidence). Filers do not agree on how they mark up item headings; the convention used is part of the provenance of every excerpt above.
-- **[CAVEAT]** AI synthesis is disabled: no ANTHROPIC_API_KEY is configured. The financial comparison, risk diff, topic evidence and Markdown brief are unaffected.
+- **[CAVEAT]** AI synthesis is disabled: no API_KEY is configured. The financial comparison, risk diff, topic evidence and Markdown brief are unaffected.
 
 ## 9. Sources
 

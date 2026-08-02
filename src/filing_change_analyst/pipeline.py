@@ -190,7 +190,7 @@ def apply_ai_synthesis(
     client = client or LlmClient()
     if not client.available:
         result.warnings.append(
-            "AI synthesis is disabled: no ANTHROPIC_API_KEY is configured. The financial "
+            "AI synthesis is disabled: no API_KEY is configured. The financial "
             "comparison, risk diff, topic evidence and Markdown brief are unaffected."
         )
         result.llm_logs = client.logs

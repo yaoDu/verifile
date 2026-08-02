@@ -141,7 +141,7 @@ def answer_question(
         return QaResult(
             question=question,
             answer=(
-                "AI synthesis is unavailable (no ANTHROPIC_API_KEY configured). The most "
+                "AI synthesis is unavailable (no API_KEY configured). The most "
                 "relevant passages from both filings are shown below for direct reading; every "
                 "excerpt carries its filing, section and accession number."
             ),

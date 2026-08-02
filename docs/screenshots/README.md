@@ -1,7 +1,7 @@
 # Screenshots
 
 Captured from a live run of `streamlit run app.py` against the real MSFT FY2025 / FY2024 10-K pair,
-with **no `ANTHROPIC_API_KEY` configured** — everything shown is produced deterministically.
+with **no `API_KEY` configured** — everything shown is produced deterministically.
 
 | File | View | What it shows |
 |---|---|---|

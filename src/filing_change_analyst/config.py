@@ -36,7 +36,7 @@ class Settings(BaseSettings):
         alias="SEC_USER_AGENT",
     )
 
-    anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
+    api_key: str = Field(default="", alias="API_KEY")
     llm_model: str = Field(default="claude-opus-5", alias="FCA_LLM_MODEL")
     llm_max_tokens: int = Field(default=8000, alias="FCA_LLM_MAX_TOKENS")
     # Current Claude models reject `temperature`; reproducibility is controlled
@@ -62,7 +62,7 @@ class Settings(BaseSettings):
 
     @property
     def llm_available(self) -> bool:
-        return bool(self.anthropic_api_key.strip())
+        return bool(self.api_key.strip())
 
     def sec_identity_configured(self) -> bool:
         """True when SEC_USER_AGENT looks like a real ``Name email`` identity."""

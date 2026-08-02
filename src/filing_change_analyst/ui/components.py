@@ -209,7 +209,7 @@ def llm_status_badge(available: bool) -> None:
         st.success("AI synthesis: **enabled**")
     else:
         st.info(
-            "AI synthesis: **disabled** (no `ANTHROPIC_API_KEY`). "
+            "AI synthesis: **disabled** (no `API_KEY`). "
             "The financial comparison, risk diff, evidence retrieval and Markdown brief all "
             "still work."
         )

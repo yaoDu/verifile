@@ -188,7 +188,7 @@ def test_client_without_key_returns_none_and_logs():
     )
     assert parsed is None
     assert isinstance(run, LlmRunLog)
-    assert not run.ok and "ANTHROPIC_API_KEY" in run.error
+    assert not run.ok and "API_KEY" in run.error
 
 
 def test_client_never_logs_the_key():

@@ -7,7 +7,7 @@ A small, credible question set for the default MSFT 10-K pair.
 * `RESULTS.md` — the latest measured run (regenerated, not hand-written).
 
 ```bash
-python evaluation/run_evaluation.py            # uses a model if ANTHROPIC_API_KEY is set
+python evaluation/run_evaluation.py            # uses a model if API_KEY is set
 python evaluation/run_evaluation.py --no-llm   # force deterministic-only scoring
 ```
 

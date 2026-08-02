@@ -39,7 +39,7 @@ class LlmClient:
 
     def __init__(self, api_key: str | None = None) -> None:
         self.settings = get_settings()
-        self._api_key = api_key if api_key is not None else self.settings.anthropic_api_key
+        self._api_key = api_key if api_key is not None else self.settings.api_key
         self._client = None
         self.logs: list[LlmRunLog] = []
 
@@ -88,7 +88,7 @@ class LlmClient:
                 purpose=purpose,
                 latency_ms=0,
                 ok=False,
-                error="No ANTHROPIC_API_KEY configured; AI synthesis is disabled.",
+                error="No API_KEY configured; AI synthesis is disabled.",
             )
             self.logs.append(entry)
             return None, entry

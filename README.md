@@ -126,7 +126,7 @@ pip install -e ".[dev]"                               # or: uv pip install -e ".
 
 cp .env.example .env
 # Edit .env and set SEC_USER_AGENT to a real "Your Name your@email" value.
-# SEC blocks unidentified automated clients. ANTHROPIC_API_KEY is optional.
+# SEC blocks unidentified automated clients. API_KEY is optional.
 
 streamlit run app.py
 ```
@@ -290,7 +290,7 @@ to trust the text.
 
 ### Running without an LLM
 
-Leave `ANTHROPIC_API_KEY` empty. The app states plainly that AI synthesis is disabled and still gives you:
+Leave `API_KEY` empty. The app states plainly that AI synthesis is disabled and still gives you:
 
 * the full 21-metric comparison with per-fact provenance,
 * the risk-factor heading diff,
@@ -547,7 +547,7 @@ Honest and specific. Full list with mitigations in [`docs/limitations.md`](docs/
    ticker to its predecessor entity.
 8. **10-Q support is structural only.** The comparability checks handle it; the metric catalogue and topic
    probes are tuned for annual filings.
-9. **The live model path has never been exercised against a real API.** No `ANTHROPIC_API_KEY` was
+9. **The live model path has never been exercised against a real API.** No `API_KEY` was
    available during the build, so `research/synthesis.py` and the LLM branch of `research/qa.py` are
    validated only by stubbed-model tests. Those tests do cover all four gates — fabricated citations,
    single-period citations, invented figures and recommendation language are each asserted to be
@@ -611,37 +611,39 @@ requirements.txt                    runtime deps for the hosted deployment
 
 ## Deployment
 
-The hosted demo runs on [Streamlit Community Cloud](https://share.streamlit.io) from the `main` branch of
-this repository. To stand up your own copy:
+The demo runs on [Streamlit Community Cloud](https://share.streamlit.io) from the `main` branch of this
+repository. **The source repository is private; the deployed app is public.** Community Cloud supports
+that combination: deploying from a private repo requires granting its OAuth app private-repo access, and
+the app's viewer setting is independent of the repository's visibility.
 
-1. Fork this repository.
-2. At [share.streamlit.io](https://share.streamlit.io), create an app pointing at your fork, with
+To stand up a copy:
+
+1. At [share.streamlit.io](https://share.streamlit.io), create an app pointing at the repository, with
    `app.py` as the entrypoint and Python **3.11** or newer.
-3. Under *Advanced settings → Secrets*, set your SEC identity — SEC blocks unidentified automated
-   clients, so this is required, not optional:
+2. Under *Advanced settings → Secrets*, set the SEC identity. SEC blocks unidentified automated clients,
+   so this is required:
 
    ```toml
    SEC_USER_AGENT = "Your Name your.email@example.com"
    ```
 
-   `ANTHROPIC_API_KEY` is optional. Leave it out and the app runs in deterministic-only mode, which is
-   how the public instance is configured: no key means no model spend and no abuse surface on a
-   link anyone can open.
+   `API_KEY` is optional. Left unset, the app runs in deterministic-only mode — which is how the public
+   instance is configured, so there is no model spend and no abuse surface behind an open link.
 
-`app.py` copies Streamlit secrets into the process environment before settings are built, so the same
-configuration works locally through `.env` and on the host through the secrets store, with the local
-`.env` taking precedence.
+`app.py` copies Streamlit secrets into the environment before settings are built, so the same
+configuration works locally through `.env` and on the host through its secrets store, with `.env` taking
+precedence locally.
 
 ### Why the demo is fast
 
-A cold run pulls ~30 MB from EDGAR, and SEC rate-limits by IP — a shared cloud host is not a friendly IP
-to share. So `data/demo_cache.tar.gz` ships the SEC responses for the four demo tickers, and
-`services/demo_cache.py` unpacks them into the HTTP cache on first boot. Seeding is skipped whenever the
-cache already holds entries, so it never overwrites a warm local cache or affects the test suite.
+A cold run pulls ~30 MB from EDGAR, and SEC rate-limits by IP. `data/demo_cache.tar.gz` therefore ships
+the SEC responses for the four demo tickers, and `services/demo_cache.py` unpacks them into the HTTP
+cache on first start. Seeding is skipped whenever the cache already holds entries, so it never overwrites
+a warm local cache or affects the test suite.
 
 What is bundled is **the raw bytes EDGAR returned**, keyed by request URL — not canned output. Sections
 are still extracted, facts still selected and every figure still computed at request time. Tick
-**Bypass cache** in the sidebar to force a live re-fetch and confirm that. Rebuild the archive with
+**Bypass cache** in the sidebar to force a live re-fetch. Rebuild the archive with
 `python scripts/build_demo_cache.py`.
 
 ---
@@ -651,33 +653,31 @@ are still extracted, facts still selected and every figure still computed at req
 Author: **Yao Du** ([@yaoDu](https://github.com/yaoDu)). Independent portfolio project, built from
 scratch; there is no upstream repository and this is not a fork.
 
-Four independent ways to verify that:
+The repository is private and read access is granted on request. Once you have access, four independent
+things establish authorship:
 
 | Check | What it shows |
 |---|---|
-| `git log --show-signature` | Every commit is **cryptographically signed** with the author's SSH key. GitHub renders this as a **Verified** badge. Anyone can type any name into a git author field — a valid signature is the part that cannot be forged without the private key. |
-| [`CITATION.cff`](CITATION.cff) | Machine-readable authorship metadata. GitHub renders it as a *Cite this repository* panel on the repository home page. |
-| [`LICENSE`](LICENSE) | MIT, © 2026 Yao Du. Grants reuse with attribution while the copyright itself stays asserted. |
-| Commit history | The full build is in the history — five substantive commits, including the coverage sweep that found three real defects and the code-review pass that fixed a rendering bug. Development history is much harder to fabricate after the fact than a finished snapshot. |
+| `git log --show-signature` | Every commit is **cryptographically signed** with the author's SSH key, which GitHub renders as a **Verified** badge. Any name can be typed into a git author field; a valid signature is the part that cannot be produced without the private key. |
+| [`CITATION.cff`](CITATION.cff) | Machine-readable authorship metadata, rendered by GitHub as a *Cite this repository* panel. |
+| [`LICENSE`](LICENSE) | MIT, © 2026 Yao Du — reuse is granted, copyright is retained. |
+| Commit history | The build is visible in the history rather than arriving as a finished snapshot: the coverage sweep that found three real defects, and the code-review pass that fixed a rendering bug, are separate commits with their reasoning in the messages. |
 
-The quickest check needs no setup at all: open any commit on GitHub and look for the **Verified** badge.
+The quickest check is to open any commit on GitHub and look for the **Verified** badge.
 
-To verify the signatures yourself from a clone, point git at the public keys trusted to sign here.
-SSH signature verification requires this — without an allowed-signers file git reports *"gpg.ssh
-.allowedSignersFile needs to be configured"* rather than a bad signature:
+To verify signatures from a clone, point git at the public keys trusted to sign here. SSH verification
+requires this — without an allowed-signers file git reports a configuration error rather than a verdict:
 
 ```bash
-git clone https://github.com/yaoDu/evidence-first-filing-change-analyst.git
-cd evidence-first-filing-change-analyst
-
 git config gpg.ssh.allowedSignersFile .github/allowed_signers
 git log --show-signature
 # Good "git" signature for 76980641+yaoDu@users.noreply.github.com with ED25519 key SHA256:eJvaEl/…
 ```
 
 [`.github/allowed_signers`](.github/allowed_signers) contains only a public key. Cross-check it against
-the copy GitHub serves independently at [github.com/yaoDu.keys](https://github.com/yaoDu.keys) — if the
-two agree, the signatures were made by the holder of that account's private key.
+the copy GitHub serves at [github.com/yaoDu.keys](https://github.com/yaoDu.keys), which stays publicly
+readable regardless of repository visibility. If the two agree, the signatures were made by the holder of
+that account's private key.
 
 ## License
 

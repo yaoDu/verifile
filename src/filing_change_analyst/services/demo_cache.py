@@ -1,21 +1,13 @@
 """Warm-start the disk cache from a bundled archive of SEC responses.
 
-The hosted demo runs on a shared cloud IP, which is exactly the kind of client
-SEC EDGAR throttles first, and a cold run would make a visitor wait through
-~30 MB of downloads before seeing anything. So the repository ships a
-pre-warmed copy of the SEC responses the demo tickers need, and this module
-unpacks it into the cache directory the first time the app starts.
+A cold run pulls ~30 MB from EDGAR, and SEC rate-limits by IP — a poor first
+impression on a shared cloud host. The repository therefore ships the SEC
+responses for the demo tickers, unpacked here on first start.
 
-What is bundled is the *raw bytes SEC returned*, keyed by request URL — the same
-thing :class:`~filing_change_analyst.services.cache.DiskCache` would have stored
-after a live run. Nothing downstream changes: sections are still extracted,
-facts still selected, and every figure still computed at request time. The
-sidebar's "Bypass cache" toggle forces a live re-fetch, so the provenance claim
-stays checkable.
-
-Seeding is deliberately conservative — it is skipped entirely when the cache
-already holds entries, so a developer's own warm cache is never overwritten and
-the offline test suite is unaffected.
+What is bundled is the raw bytes SEC returned, keyed by request URL: the same
+thing :class:`~filing_change_analyst.services.cache.DiskCache` would hold after
+a live run. Nothing downstream changes, and "Bypass cache" still forces a live
+re-fetch.
 
 Rebuild the archive with ``python scripts/build_demo_cache.py``.
 """
@@ -39,14 +31,11 @@ class UnsafeArchiveError(RuntimeError):
 
 
 def _safe_members(tf: tarfile.TarFile, dest: Path) -> list[tarfile.TarInfo]:
-    """Return members that are plain files/dirs landing inside ``dest``.
+    """Return the archive members, rejecting any that escape ``dest``.
 
-    ``tarfile`` will happily honour ``../`` paths, absolute paths, symlinks and
-    device nodes. The bundled archive is ours and contains none of those, but it
-    arrives over the same git clone as everything else, so it is validated
-    rather than trusted. Python 3.12's ``filter="data"`` does the equivalent;
-    this is spelled out so the guarantee does not depend on the runtime's
-    patch version.
+    ``tarfile`` honours ``../`` paths, absolute paths and symlinks. Python
+    3.12's ``filter="data"`` covers this, but is spelled out here so the
+    guarantee does not depend on the runtime's patch version.
     """
     resolved_dest = dest.resolve()
     safe: list[tarfile.TarInfo] = []
@@ -63,9 +52,10 @@ def _safe_members(tf: tarfile.TarFile, dest: Path) -> list[tarfile.TarInfo]:
 def seed_demo_cache(archive: Path | None = None, cache: DiskCache | None = None) -> dict:
     """Extract the bundled cache when the live cache is empty.
 
-    Returns the cache stats dict with an added ``seeded`` flag. Never raises on
-    a missing or unreadable archive: a demo that starts slowly is a far better
-    outcome than a demo that does not start.
+    Returns the cache stats with an added ``seeded`` flag. Skipped when the
+    cache already holds entries, so a warm local cache is never overwritten.
+    A missing or unreadable archive degrades to a slow cold start rather than
+    raising.
     """
     cache = cache or DiskCache()
     stats = cache.stats()

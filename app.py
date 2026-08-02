@@ -17,17 +17,12 @@ import streamlit as st  # noqa: E402
 
 
 def _bridge_secrets_to_env() -> None:
-    """Copy Streamlit secrets into the process environment.
+    """Copy Streamlit secrets into the environment before settings are built.
 
-    Settings are read from the environment (or a local ``.env``) by
-    ``pydantic-settings``, which knows nothing about ``st.secrets``. Hosted
-    deployments have no ``.env`` — they inject configuration through the
-    platform's secrets store — so the two have to be joined up before
-    :func:`get_settings` builds its cached ``Settings``.
-
-    Only upper-case scalars are copied, and an existing environment variable
-    always wins, so a local ``.env`` still overrides the deployment. Values are
-    never logged; ``config.py`` is the only place they are read.
+    ``pydantic-settings`` reads the environment and ``.env``; hosted
+    deployments supply configuration through ``st.secrets`` instead. An
+    existing environment variable wins, so a local ``.env`` still takes
+    precedence. Values are never logged.
     """
     try:
         items = list(st.secrets.items())
@@ -135,10 +130,9 @@ with st.sidebar:
     st.caption(f"Cache: {stats['entries']} entries, {stats['bytes'] / 1e6:.1f} MB")
     if cache_state.get("seeded"):
         st.caption(
-            "Warm-started from the SEC responses bundled in the repository, so the demo "
-            "renders on the first click. These are the raw bytes EDGAR returned — every "
-            "figure is still computed from them at request time. Tick **Bypass cache** "
-            "above to force a live fetch and check that for yourself."
+            "Warm-started from SEC responses bundled with the app. These are the raw bytes "
+            "EDGAR returned; every figure is still computed from them at request time. "
+            "Tick **Bypass cache** above to force a live fetch."
         )
     st.caption("Research aid only. Not investment advice.")
 

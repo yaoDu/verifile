@@ -1,30 +1,17 @@
-"""Build the bundled warm cache shipped with the hosted demo.
+"""Build the warm cache bundled with the hosted deployment.
 
-Why this exists
----------------
-The hosted demo has to render on a visitor's *first* click. A cold run pulls
-~30 MB from SEC EDGAR and takes the better part of a minute; worse, EDGAR
-rate-limits by IP, and a shared cloud host is not a friendly IP to share. So the
-deployment ships a pre-warmed copy of exactly the SEC responses the demo tickers
-need, and :mod:`filing_change_analyst.services.demo_cache` unpacks it on boot.
+Selects the cached SEC responses for the demo tickers from a warm local cache
+and writes them to ``data/demo_cache.tar.gz``, which
+:mod:`filing_change_analyst.services.demo_cache` unpacks on first start.
 
-This is an ordinary HTTP cache warm-start, not canned output: the archive holds
-the *raw bytes SEC returned*, keyed by URL, and every figure in the app is still
-computed from them at request time. The sidebar's "Bypass cache" toggle forces a
-live re-fetch, so a sceptical reviewer can prove that for themselves.
-
-Regenerate with a warm local cache::
+Usage::
 
     python scripts/build_demo_cache.py
-
-The archive is content-addressed the same way the live cache is, so rebuilding
-after refreshing a filing produces a drop-in replacement.
 """
 
 from __future__ import annotations
 
 import argparse
-import shutil
 import sqlite3
 import sys
 import tarfile
@@ -37,12 +24,9 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from filing_change_analyst.services.cache import DiskCache  # noqa: E402
 from filing_change_analyst.services.demo_cache import DEMO_CACHE_ARCHIVE  # noqa: E402
 
-# CIKs whose cached SEC responses are bundled. MSFT is the app default and
-# carries three filings so that both the live FY2026/FY2025 pair and the pinned
-# FY2025/FY2024 evaluation pair resolve offline. The other three are the ones
-# worth reaching for in a walkthrough: AAPL and NVDA exercise the `mixed_case`
-# section-anchoring strategy, and P&G is the `title_only` low-confidence case the
-# README singles out as the system's weakest filer.
+# MSFT is the app default and carries three filings, so both the live pair and
+# the pinned evaluation pair resolve offline. The rest cover the other two
+# section-anchoring strategies, P&G being the low-confidence `title_only` case.
 BUNDLED_CIKS = {
     "0000789019": "MSFT — app default, FY2026/FY2025/FY2024",
     "0000320193": "AAPL — mixed_case anchoring",
@@ -50,16 +34,14 @@ BUNDLED_CIKS = {
     "0000080424": "PG   — title_only anchoring, low confidence",
 }
 
-# The ticker index is CIK-independent and needed to resolve any ticker at all.
+# CIK-independent, and needed to resolve any ticker at all.
 ALWAYS_INCLUDE = ("https://www.sec.gov/files/company_tickers.json",)
 
 
 def _wanted(url: str) -> bool:
     if url in ALWAYS_INCLUDE:
         return True
-    return any(
-        f"CIK{cik}.json" in url or f"/data/{int(cik)}/" in url for cik in BUNDLED_CIKS
-    )
+    return any(f"CIK{cik}.json" in url or f"/data/{int(cik)}/" in url for cik in BUNDLED_CIKS)
 
 
 def build(source_root: Path, out: Path) -> None:
@@ -86,8 +68,8 @@ def build(source_root: Path, out: Path) -> None:
             copied += 1
 
         out.parent.mkdir(parents=True, exist_ok=True)
-        # Deterministic-ish archive: sorted members, so an unchanged cache
-        # rebuilds to a byte-similar file instead of a noisy git diff.
+        # Sorted members keep an unchanged cache rebuilding to a similar file
+        # rather than a noisy git diff.
         with tarfile.open(out, "w:gz") as tf:
             for path in sorted(staged.root.rglob("*")):
                 tf.add(path, arcname=str(path.relative_to(staged.root)))
@@ -102,18 +84,11 @@ def build(source_root: Path, out: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument(
-        "--source",
-        type=Path,
-        default=REPO_ROOT / ".cache",
-        help="Warm cache directory to draw from (default: ./.cache)",
-    )
+    ap.add_argument("--source", type=Path, default=REPO_ROOT / ".cache")
     ap.add_argument("--out", type=Path, default=DEMO_CACHE_ARCHIVE)
     args = ap.parse_args()
     if not args.source.exists():
         raise SystemExit(f"No cache at {args.source}")
-    if shutil.which("git") and args.out.exists():
-        print(f"Overwriting existing archive at {args.out}")
     build(args.source, args.out)
 
 
