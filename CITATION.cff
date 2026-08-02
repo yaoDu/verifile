@@ -11,8 +11,8 @@ authors:
   - family-names: Du
     given-names: Yao
     alias: yaoDu
-repository-code: https://github.com/yaoDu/evidence-first-filing-change-analyst
-url: https://github.com/yaoDu/evidence-first-filing-change-analyst
+repository-code: https://github.com/yaoDu/verifile
+url: https://github.com/yaoDu/verifile
 abstract: >-
   A working prototype for fundamental equity research that compares a company's
   two most recent comparable SEC filings. All financial arithmetic is performed

@@ -1,4 +1,4 @@
-# Evidence-First Filing Change Analyst
+# verifile — Evidence-First Filing Change Analyst
 
 [![Live demo](https://img.shields.io/badge/live%20demo-open%20the%20app-1f4e79?style=flat-square)](LIVE_DEMO_URL)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
@@ -118,8 +118,8 @@ index in [`docs/screenshots/`](docs/screenshots/README.md).
 Requires Python 3.11+.
 
 ```bash
-git clone https://github.com/yaoDu/evidence-first-filing-change-analyst.git
-cd evidence-first-filing-change-analyst
+git clone https://github.com/yaoDu/verifile.git
+cd verifile
 
 python -m venv .venv && source .venv/bin/activate     # or: uv venv && source .venv/bin/activate
 pip install -e ".[dev]"                               # or: uv pip install -e ".[dev]"
@@ -612,14 +612,10 @@ requirements.txt                    runtime deps for the hosted deployment
 ## Deployment
 
 The demo runs on [Streamlit Community Cloud](https://share.streamlit.io) from the `main` branch of this
-repository. **The source repository is private; the deployed app is public.** Community Cloud supports
-that combination: deploying from a private repo requires granting its OAuth app private-repo access, and
-the app's viewer setting is independent of the repository's visibility.
+repository. To stand up a copy:
 
-To stand up a copy:
-
-1. At [share.streamlit.io](https://share.streamlit.io), create an app pointing at the repository, with
-   `app.py` as the entrypoint and Python **3.11** or newer.
+1. Fork the repository, then at [share.streamlit.io](https://share.streamlit.io) create an app pointing
+   at your fork, with `app.py` as the entrypoint and Python **3.11** or newer.
 2. Under *Advanced settings → Secrets*, set the SEC identity. SEC blocks unidentified automated clients,
    so this is required:
 
@@ -653,17 +649,17 @@ are still extracted, facts still selected and every figure still computed at req
 Author: **Yao Du** ([@yaoDu](https://github.com/yaoDu)). Independent portfolio project, built from
 scratch; there is no upstream repository and this is not a fork.
 
-The repository is private and read access is granted on request. Once you have access, four independent
-things establish authorship:
+Three things establish that:
 
 | Check | What it shows |
 |---|---|
-| `git log --show-signature` | Every commit is **cryptographically signed** with the author's SSH key, which GitHub renders as a **Verified** badge. Any name can be typed into a git author field; a valid signature is the part that cannot be produced without the private key. |
+| `git log --show-signature` | The commit is **cryptographically signed** with the author's SSH key, which GitHub renders as a **Verified** badge. Any name can be typed into a git author field; a valid signature is the part that cannot be produced without the private key. |
 | [`CITATION.cff`](CITATION.cff) | Machine-readable authorship metadata, rendered by GitHub as a *Cite this repository* panel. |
 | [`LICENSE`](LICENSE) | MIT, © 2026 Yao Du — reuse is granted, copyright is retained. |
-| Commit history | The build is visible in the history rather than arriving as a finished snapshot: the coverage sweep that found three real defects, and the code-review pass that fixed a rendering bug, are separate commits with their reasoning in the messages. |
 
-The quickest check is to open any commit on GitHub and look for the **Verified** badge.
+This repository is published as a single squashed commit; the incremental development history is kept in
+a private repository. The quickest check is to open the commit on GitHub and look for the **Verified**
+badge.
 
 To verify signatures from a clone, point git at the public keys trusted to sign here. SSH verification
 requires this — without an allowed-signers file git reports a configuration error rather than a verdict:
