@@ -40,6 +40,91 @@ def _client(sharded_submissions, companyfacts_json, later_html, earlier_html) ->
     )
 
 
+def _quarterly(accession: str, report: str, filed: str):  # noqa: ANN202
+    from datetime import date
+
+    from filing_change_analyst.models import Filing
+
+    return Filing(
+        cik="0000789019",
+        ticker="MSFT",
+        company_name="MICROSOFT CORP",
+        form="10-Q",
+        accession=accession,
+        filing_date=date.fromisoformat(filed),
+        report_date=date.fromisoformat(report),
+        primary_document="msft.htm",
+        fiscal_year_end="0630",
+    )
+
+
+class _StubClient:
+    """Serves a fixed filing list, so pair *selection* can be tested on its own."""
+
+    def __init__(self, filings) -> None:  # noqa: ANN001
+        self.filings = filings
+
+
+def test_quarterly_default_pairs_the_same_quarter_a_year_earlier(monkeypatch):
+    """The 10-Q default must not select two consecutive quarters.
+
+    Selecting the two newest filings is right for a 10-K and wrong for a 10-Q:
+    consecutive quarters are three months apart, and a quarter is only
+    comparable with the same quarter a year earlier. Before this was fixed the
+    default 10-Q run refused itself every time, so the form was reachable only
+    through the manual pair picker.
+    """
+    from filing_change_analyst.sec import filings as mod
+
+    history = [
+        _quarterly("acc-2026q3", "2026-03-31", "2026-04-28"),
+        _quarterly("acc-2026q2", "2025-12-31", "2026-01-27"),
+        _quarterly("acc-2026q1", "2025-09-30", "2025-10-28"),
+        _quarterly("acc-2025q3", "2025-03-31", "2025-04-29"),
+    ]
+    monkeypatch.setattr(mod, "list_filings", lambda *a, **k: history)
+
+    pair = mod.select_filing_pair(object(), "MSFT", "10-Q")
+
+    assert pair.later.accession == "acc-2026q3"
+    assert pair.earlier.accession == "acc-2025q3", "should skip back four filings, not one"
+    assert pair.comparability_ok, pair.comparability_notes
+
+
+def test_annual_default_still_takes_the_immediately_preceding_year(monkeypatch):
+    """The 10-K path is unchanged by the quarterly fix."""
+    from filing_change_analyst.sec import filings as mod
+    from tests.conftest import _filing
+
+    history = [
+        _filing("acc-fy2025", "2025-06-30", "2025-07-30", "a.htm"),
+        _filing("acc-fy2024", "2024-06-30", "2024-07-30", "b.htm"),
+        _filing("acc-fy2023", "2023-06-30", "2023-07-27", "c.htm"),
+    ]
+    monkeypatch.setattr(mod, "list_filings", lambda *a, **k: history)
+
+    pair = mod.select_filing_pair(object(), "MSFT", "10-K")
+
+    assert (pair.later.accession, pair.earlier.accession) == ("acc-fy2025", "acc-fy2024")
+    assert pair.comparability_ok
+
+
+def test_no_comparable_counterpart_still_reports_the_refusal(monkeypatch):
+    """With nothing in range, fall back to the newest pair and explain why."""
+    from filing_change_analyst.sec import filings as mod
+
+    history = [
+        _quarterly("acc-b", "2026-03-31", "2026-04-28"),
+        _quarterly("acc-a", "2025-12-31", "2026-01-27"),
+    ]
+    monkeypatch.setattr(mod, "list_filings", lambda *a, **k: history)
+
+    pair = mod.select_filing_pair(object(), "MSFT", "10-Q")
+
+    assert not pair.comparability_ok
+    assert any("3 months apart" in n for n in pair.comparability_notes)
+
+
 def test_recent_block_alone_would_find_only_one_filing(sharded_submissions):
     """Guards the premise: the trimmed fixture really does hold a single 10-K."""
     recent = sharded_submissions["subs"]["filings"]["recent"]
