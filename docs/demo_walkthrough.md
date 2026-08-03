@@ -26,7 +26,7 @@ stronger story, because it proves the product is not a wrapper.
 
 ### 0:20 — 0:45 · One click
 
-Press **Compare latest filings** (MSFT 10-K is the default). Let the status panel run.
+Press **Compare** in the top bar (MSFT 10-K is the default). Let the status panel run.
 
 > "It picks the two most recent comparable filings, checks they're actually comparable *before* touching
 > any arithmetic, pulls SEC XBRL facts, extracts Items 1, 1A, 7 and 7A, and indexes them with full
@@ -71,7 +71,7 @@ Point at the divergence card:
 > checkable disclosure change — and the caveat under it says exactly what this measure can and can't
 > tell you."
 
-*(To show the divergence case, open the sidebar's "Choose a specific filing pair" and select the FY2025
+*(To show the divergence case, open **Filing pair** in the top bar and select the FY2025
 and FY2024 10-Ks — that is also the pair in the screenshots and the pinned evaluation.)*
 
 Then **Risk factors** view, briefly:
@@ -114,7 +114,7 @@ pytest -q                              # 165 passed in ~2.5s
 python evaluation/run_evaluation.py    # 21/21 scored, 3 not measured
 ```
 
-> "165 tests, fully offline, no API key needed. And a 22-question evaluation with ground truth read by
+> "168 tests, fully offline, no API key needed. And a 22-question evaluation with ground truth read by
 > hand from the filings — 100% on metric correctness, period correctness, retrieval and citation
 > validity. Three questions are reported as *not measured* rather than passed, because they need a model
 > to answer honestly. That's the whole philosophy: report what you measured, and say clearly what you
@@ -157,7 +157,7 @@ for JPM, 9/21 for Berkshire, because banks have no gross profit or PP&E capex to
 `N/A` correctly, but I'd be honest that the tool is much less useful for financials.
 
 **"Show me a filer where it's weakest."**
-Type `PG` in the sidebar. P&G's 10-K carries no item numbers in the body at all, so extraction falls back
+Type `PG` in the top bar. P&G's 10-K carries no item numbers in the body at all, so extraction falls back
 to anchoring on bare section titles — and the app says so, in a warning, with "low confidence" next to it.
 That's the design: it still works, and it tells you how much to trust it.
 

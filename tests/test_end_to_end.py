@@ -75,20 +75,47 @@ def test_pipeline_runs_without_an_llm_and_says_so(bundle):
     assert all(c.generated_by == "deterministic" for c in result.changes)
 
 
-def test_markdown_brief_contains_all_nine_sections(bundle):
+def test_markdown_brief_contains_every_section(bundle):
     md = build_markdown_brief(bundle.result)
     for heading in (
-        "## 1. Executive change summary",
+        "## 1. What changed",
         "## 2. Verified financial changes",
-        "## 3. Management commentary changes",
-        "## 4. Risk-factor changes",
-        "## 5. Bull considerations",
-        "## 6. Bear considerations",
-        "## 7. Questions for management",
-        "## 8. Caveats and missing information",
-        "## 9. Sources",
+        "## 3. Risk-factor changes",
+        "## 4. Interpretation and open questions",
+        "## 5. Method and caveats",
+        "## 6. Sources",
     ):
         assert heading in md, heading
+    assert "Questions for management" in md
+
+
+def test_brief_still_cites_both_periods_for_every_change(bundle):
+    """The brief was cut from ~12 pages to ~5; this pins what the cut may not touch.
+
+    Length came out of quoted volume and duplicated scaffolding. Every change
+    must still carry a resolvable citation for each period it claims to compare,
+    or the brief would be summarising evidence it no longer shows.
+    """
+    result = bundle.result
+    md = build_markdown_brief(result)
+    assert result.changes, "fixture should produce changes for this to mean anything"
+    for change in result.changes:
+        for ids in (change.earlier_source_ids, change.later_source_ids):
+            if not ids:
+                continue
+            chunk = result.chunk_by_id(ids[0])
+            assert chunk is not None
+            assert chunk.chunk_id in md, f"{chunk.chunk_id} dropped from the brief"
+            assert chunk.source_url in md
+
+
+def test_brief_states_a_shared_caveat_once_rather_than_per_change(bundle):
+    """Deterministic changes share a caveat; it is hoisted, not repeated."""
+    md = build_markdown_brief(bundle.result)
+    shared = "Emphasis is a phrase-frequency measure"
+    if sum(shared in (c.caveat or "") for c in bundle.result.changes) > 1:
+        assert md.count(shared) == 1, "shared caveat should appear exactly once"
+        assert "Applies to every change below" in md
 
 
 def test_brief_labels_facts_calculations_and_interpretation(bundle):
@@ -154,11 +181,17 @@ def test_unsupported_form_is_refused(fake_client):
 def test_incompatible_pair_is_flagged_end_to_end(fake_client, fy2023, fy2025):
     from filing_change_analyst.pipeline import pair_from_filings
 
-    bundle = run_analysis("MSFT", "10-K", client=fake_client, pair=pair_from_filings(fy2023, fy2025))
+    bundle = run_analysis(
+        "MSFT", "10-K", client=fake_client, pair=pair_from_filings(fy2023, fy2025)
+    )
     r = bundle.result
     assert not r.pair.comparability_ok
     assert any("months apart" in w for w in r.warnings)
-    assert all(c.status == "incompatible_periods" for c in r.comparisons if c.earlier.available and c.later.available)
+    assert all(
+        c.status == "incompatible_periods"
+        for c in r.comparisons
+        if c.earlier.available and c.later.available
+    )
     md = build_markdown_brief(r)
     assert "Period comparability failed" in md
 
@@ -168,9 +201,9 @@ def test_analysis_is_reproducible(fake_client):
     b = run_analysis("MSFT", "10-K", client=fake_client).result
     assert [c.chunk_id for c in a.chunks] == [c.chunk_id for c in b.chunks]
     assert [c.claim for c in a.changes] == [c.claim for c in b.changes]
-    assert [
-        (c.metric_id, c.percent_change, c.point_change) for c in a.comparisons
-    ] == [(c.metric_id, c.percent_change, c.point_change) for c in b.comparisons]
+    assert [(c.metric_id, c.percent_change, c.point_change) for c in a.comparisons] == [
+        (c.metric_id, c.percent_change, c.point_change) for c in b.comparisons
+    ]
 
 
 def test_missing_filing_document_degrades_gracefully(
@@ -185,9 +218,7 @@ def test_missing_filing_document_degrades_gracefully(
                 raise SecError("simulated 503 from SEC")
             return super().filing_document(cik, accession, document, refresh)
 
-    client = Partial(
-        submissions_json, companyfacts_json, {"0000950170-25-100235": later_html}
-    )
+    client = Partial(submissions_json, companyfacts_json, {"0000950170-25-100235": later_html})
     r = run_analysis("MSFT", "10-K", client=client).result
     assert len([c for c in r.comparisons if c.status == "ok"]) >= 6
     assert any("Could not download the earlier filing" in w for w in r.warnings)

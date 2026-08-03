@@ -8,6 +8,10 @@ pydantic-settings>=2.3
 pandas>=2.2
 beautifulsoup4>=4.12
 lxml>=5.2
-streamlit>=1.36
+# Pinned to the version the UI is tested against. The interface uses
+# `st.segmented_control`, `st.popover`, `width="stretch"` and the newer theme
+# keys in .streamlit/config.toml, none of which exist in the 1.36 this file
+# previously allowed — a resolver picking an older wheel would crash on boot.
+streamlit>=1.60
 # Messages API client. Also used against DeepSeek, which is compatible.
 anthropic>=0.40

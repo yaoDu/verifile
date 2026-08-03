@@ -1,7 +1,9 @@
 [project]
-name = "filing-change-analyst"
+# The distribution is named for the product; the import package stays
+# `filing_change_analyst` so the rename does not churn every import in the tree.
+name = "verifile"
 version = "0.1.0"
-description = "Evidence-first SEC filing change analyst for fundamental equity research"
+description = "Verifile — evidence-first SEC filing change analysis for fundamental equity research"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -11,7 +13,7 @@ dependencies = [
     "pandas>=2.2",
     "beautifulsoup4>=4.12",
     "lxml>=5.2",
-    "streamlit>=1.36",
+    "streamlit>=1.60",  # segmented_control, popover, width="stretch", newer theme keys
     "anthropic>=0.40",  # Messages API client; also used against DeepSeek
 ]
 

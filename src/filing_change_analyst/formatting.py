@@ -77,3 +77,39 @@ def short_excerpt(text: str, limit: int = 420) -> str:
     if len(t) <= limit:
         return t
     return t[:limit].rsplit(" ", 1)[0] + " …"
+
+
+def escape_dollars(text: str) -> str:
+    """Stop Streamlit reading ``$…$`` as LaTeX.
+
+    This is the escape that actually bites. A claim reading ``capex rose from
+    $64.55B to $115.95B`` loses both dollar signs and renders everything between
+    them in maths italics — silently turning a correct figure into a misleading
+    one. Dollar amounts appear in nearly every generated claim, every brief and
+    most filing excerpts, so this is the common case rather than an edge case.
+
+    Narrow by design: it leaves every other Markdown construct alone, so it is
+    safe to apply to text that is *meant* to be Markdown, such as the analyst
+    brief.
+    """
+    return text.replace("$", r"\$")
+
+
+# Order matters: the backslash must be escaped before anything that introduces
+# one, or the escapes we add would themselves be escaped.
+_MD_SPECIALS = ("\\", "$", "*", "_", "`", "~", "<")
+
+
+def md_safe(text: str) -> str:
+    """Neutralise Markdown markup in a *content* string before rendering.
+
+    For strings that are prose rather than markup: filing excerpts, generated
+    claims, caveats, model answers. Covers :func:`escape_dollars` and adds the
+    emphasis characters, so filing text containing ``*`` or ``_`` reads as the
+    filing wrote it instead of turning into bold or italic. Complements — and
+    does not replace — the rule that filing text is never rendered with
+    ``unsafe_allow_html``.
+    """
+    for ch in _MD_SPECIALS:
+        text = text.replace(ch, "\\" + ch)
+    return text

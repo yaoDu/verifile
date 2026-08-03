@@ -62,16 +62,85 @@ def test_ast_check_would_catch_a_regression():
     assert _raw_html_calls(ok, "x.py") == []
 
 
-def test_no_package_module_enables_raw_html_rendering():
-    offenders: list[str] = []
+CHOKEPOINT_MODULE = "ui/theme.py"
+CHOKEPOINT_FUNC = "render"
+
+
+def test_raw_html_rendering_is_confined_to_one_chokepoint():
+    """Chrome needs markup; filing text must never be inside it.
+
+    The metric grid's diverging bars, the emphasis chart and the risk
+    composition bar have no Streamlit primitive, so the UI does render some of
+    its own HTML. Rather than let that spread across the UI as a judgement call
+    at every call site, every such call goes through ``theme.render`` and this
+    test pins it there — so auditing the raw-HTML path means reading one
+    function, and a stray ``unsafe_allow_html`` anywhere else fails the build.
+    """
     for path in sorted(PACKAGE_DIR.rglob("*.py")):
-        offenders += _raw_html_calls(path.read_text(), str(path.relative_to(PACKAGE_DIR)))
-    assert offenders == [], f"raw-HTML rendering reintroduced at {offenders}"
+        rel = str(path.relative_to(PACKAGE_DIR))
+        calls = _raw_html_calls(path.read_text(), rel)
+        if rel != CHOKEPOINT_MODULE:
+            assert calls == [], f"raw-HTML rendering outside the chokepoint at {calls}"
+
+    source = (PACKAGE_DIR / CHOKEPOINT_MODULE).read_text()
+    calls = _raw_html_calls(source, CHOKEPOINT_MODULE)
+    assert calls, "the chokepoint should still be the one place using the raw-HTML path"
+
+    func = next(
+        n
+        for n in ast.walk(ast.parse(source))
+        if isinstance(n, ast.FunctionDef) and n.name == CHOKEPOINT_FUNC
+    )
+    for call in calls:
+        lineno = int(call.split(":")[1])
+        assert func.lineno <= lineno <= (func.end_lineno or func.lineno), (
+            f"raw-HTML call at {call} is outside {CHOKEPOINT_FUNC}()"
+        )
 
 
 def test_app_entrypoint_enables_no_raw_html_rendering():
     assert APP_ENTRYPOINT.exists(), APP_ENTRYPOINT
     assert _raw_html_calls(APP_ENTRYPOINT.read_text(), "app.py") == []
+
+
+def test_chrome_builders_escape_third_party_strings(monkeypatch, fy2024):
+    """Hostile EDGAR metadata must reach the chokepoint already inert.
+
+    ``company_name``, ``form`` and ``accession`` come from EDGAR's submissions
+    JSON, not from this repository, so they are third-party strings that end up
+    inside markup. This drives them through the real rendering path and asserts
+    that what arrives at ``theme.render`` carries no live markup.
+    """
+    from filing_change_analyst.models import AnalysisResult, FilingPair
+
+    captured: list[str] = []
+    monkeypatch.setattr(components.theme, "render", captured.append)
+
+    hostile = '<img src=x onerror=alert(1)>"'
+    poisoned = fy2024.model_copy(
+        update={
+            "company_name": hostile,
+            "ticker": hostile,
+            "form": hostile,
+            "accession": hostile,
+        }
+    )
+    result = AnalysisResult(pair=FilingPair(earlier=poisoned, later=poisoned))
+
+    components.company_header(result)
+    components.filing_context_bar(result)
+    components.section_heading(hostile, hostile)
+
+    assert captured, "the builders should have produced markup"
+    for markup in captured:
+        # `onerror=` may appear as literal text and is inert there; an unescaped
+        # `<img` is not, and neither is the payload reaching the page verbatim.
+        assert "<img" not in markup
+        assert hostile not in markup
+    assert any("&lt;img src=x onerror=alert(1)&gt;&quot;" in m for m in captured), (
+        "the payload should have reached the markup in escaped form, "
+        "otherwise this test is not exercising the path it claims to"
+    )
 
 
 def test_evidence_card_splits_excerpt_from_provenance():

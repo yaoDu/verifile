@@ -3,7 +3,7 @@
 # which is the clearest machine-readable statement of authorship a repository
 # can carry.
 cff-version: 1.2.0
-title: Evidence-First Filing Change Analyst
+title: Verifile — Evidence-First SEC Filing Change Analysis
 message: >-
   If you reference or reuse this work, please cite it using the metadata below.
 type: software

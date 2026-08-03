@@ -10,9 +10,18 @@ gatherUsageStats = false
 showErrorDetails = "none"
 toolbarMode = "minimal"
 
+# Base tokens only. Streamlit's own widgets read these; everything else — the
+# aurora backdrop, the metric grid, motion — lives in ui/theme.py so there is a
+# single source of truth for the palette. Keep the two in step.
 [theme]
-base = "light"
-primaryColor = "#1f4e79"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f2f5f9"
-textColor = "#1a1a1a"
+base = "dark"
+primaryColor = "#A3E635"
+backgroundColor = "#0F1115"
+secondaryBackgroundColor = "#161A21"
+textColor = "#E8E8E5"
+linkColor = "#A3E635"
+borderColor = "#242A34"
+codeBackgroundColor = "#161A21"
+font = "Be Vietnam Pro, ui-sans-serif, system-ui, sans-serif"
+codeFont = "Google Sans Code, ui-monospace, SFMono-Regular, Menlo, monospace"
+baseRadius = "0.5rem"
