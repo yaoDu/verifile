@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from datetime import date, datetime
 from typing import Any
 
-from ..models import Filing, FilingPair
+from ..models import ComparisonBasis, Filing, FilingPair
 from .client import TTL_INDEX, SecClient, SecError
 
 log = logging.getLogger(__name__)
@@ -126,22 +127,51 @@ def _months_between(a: date, b: date) -> int:
     return abs((a.year - b.year) * 12 + (a.month - b.month))
 
 
-# The gap, in months, that makes two filings of a given form like-for-like.
-# `check_comparability` enforces this and `select_filing_pair` searches by it, so
-# the rule that refuses a pair and the rule that chooses one cannot drift apart —
-# which is exactly how the 10-Q default came to refuse itself on every run.
-COMPARABLE_GAP_MONTHS: dict[str, tuple[int, int]] = {
-    "10-K": (10, 14),  # allow for 52/53-week calendars and fiscal drift
-    "10-Q": (12, 12),  # a quarter is only comparable with the same quarter a year earlier
+# The gap, in months, that makes two filings of a given form like-for-like, per
+# comparison basis. `check_comparability` enforces this and `select_filing_pair`
+# searches by it, so the rule that refuses a pair and the rule that chooses one
+# cannot drift apart — which is exactly how the 10-Q default came to refuse
+# itself on every run.
+COMPARABLE_GAP_MONTHS: dict[str, dict[str, tuple[int, int]]] = {
+    "10-K": {
+        "year_over_year": (10, 14),  # allow for 52/53-week calendars and fiscal drift
+    },
+    "10-Q": {
+        "year_over_year": (12, 12),  # the same quarter a year earlier
+        "sequential": (2, 4),  # the immediately preceding quarter
+    },
 }
 
 
-def _gap_window(form: str) -> tuple[int, int] | None:
-    return COMPARABLE_GAP_MONTHS.get(form.replace(_AMENDMENT_SUFFIX, ""))
+def _gap_window(form: str, basis: ComparisonBasis = "year_over_year") -> tuple[int, int] | None:
+    return COMPARABLE_GAP_MONTHS.get(form.replace(_AMENDMENT_SUFFIX, ""), {}).get(basis)
 
 
-def check_comparability(earlier: Filing, later: Filing) -> tuple[bool, list[str]]:
+def supported_bases(form: str) -> tuple[ComparisonBasis, ...]:
+    """Which comparison bases this form offers. A 10-K only has one."""
+    windows = COMPARABLE_GAP_MONTHS.get(form.replace(_AMENDMENT_SUFFIX, ""), {})
+    return tuple(b for b in ("year_over_year", "sequential") if b in windows)  # type: ignore[misc]
+
+
+# Attached to every sequential comparison. A quarter-on-quarter move in a
+# seasonal business is not evidence of a trend, and the figures cannot show that
+# on their own.
+SEQUENTIAL_SEASONALITY_NOTE = (
+    "Sequential comparison: this is the immediately preceding quarter, not the same quarter a "
+    "year earlier. Seasonality is not held constant, so a move here may reflect the time of "
+    "year rather than a change in the business. Use the year-over-year basis to control for it."
+)
+
+
+def check_comparability(
+    earlier: Filing, later: Filing, basis: ComparisonBasis = "year_over_year"
+) -> tuple[bool, list[str]]:
     """Structural checks before any numbers are computed.
+
+    ``basis`` says which comparison the pair is *meant* to be, because the same
+    two dates can be valid or nonsense depending on the question being asked:
+    three months apart is correct for a sequential comparison and wrong for a
+    year-over-year one.
 
     Returns ``(ok, notes)``. ``ok=False`` means the pair should be refused or
     displayed with a blocking warning — not quietly compared.
@@ -166,24 +196,44 @@ def check_comparability(earlier: Filing, later: Filing) -> tuple[bool, list[str]
         )
 
     gap_months = _months_between(earlier.report_date, later.report_date)
-    window = _gap_window(base_l)
-    if window and not (window[0] <= gap_months <= window[1]):
+    window = _gap_window(base_l, basis)
+    gap_ok = bool(window) and window[0] <= gap_months <= window[1]
+    if window and not gap_ok:
         ok = False
         if base_l == "10-K":
             notes.append(
                 f"Annual periods are {gap_months} months apart (expected ~12). "
                 "This is not a like-for-like year-over-year comparison."
             )
+        elif basis == "sequential":
+            notes.append(
+                f"Quarterly periods are {gap_months} months apart, which is not the immediately "
+                "preceding quarter (expected ~3). Pick adjacent quarters, or switch to the "
+                "year-over-year basis."
+            )
         else:
             notes.append(
-                f"Quarterly periods are {gap_months} months apart. This prototype only compares a "
-                "quarter with the same quarter of the prior year (12 months apart)."
+                f"Quarterly periods are {gap_months} months apart. A year-over-year comparison "
+                "needs the same quarter of the prior year (12 months apart). To compare with the "
+                "immediately preceding quarter, switch to the sequential basis."
             )
-    if earlier.report_date.month != later.report_date.month:
-        notes.append(
-            f"Fiscal period ends fall in different months ({earlier.report_date:%b} vs "
-            f"{later.report_date:%b}); check for a fiscal-calendar change."
-        )
+
+    if basis == "sequential" and gap_ok:
+        notes.append(SEQUENTIAL_SEASONALITY_NOTE)
+
+    # A calendar shift shows up as periods that are *nearly* a year apart but end
+    # in different months, so the note fires within a couple of months of the
+    # year-over-year window. Outside that the pair is simply the wrong one, and
+    # the gap note above already says so — telling a filer with an entirely
+    # normal calendar to "check for a fiscal-calendar change" only misdirects.
+    if basis == "year_over_year" and earlier.report_date.month != later.report_date.month:
+        yoy = _gap_window(base_l, "year_over_year")
+        plausible_shift = yoy is not None and yoy[0] - 2 <= gap_months <= yoy[1] + 2
+        if plausible_shift:
+            notes.append(
+                f"Fiscal period ends fall in different months ({earlier.report_date:%b} vs "
+                f"{later.report_date:%b}); check for a fiscal-calendar change."
+            )
 
     if earlier.is_amendment or later.is_amendment:
         notes.append(
@@ -200,21 +250,23 @@ def select_filing_pair(
     form: str = "10-K",
     *,
     refresh: bool = False,
+    basis: ComparisonBasis = "year_over_year",
 ) -> FilingPair:
     """Default selection: the latest filing of ``form`` and the most recent
-    filing that is actually *comparable* with it.
+    filing that is actually *comparable* with it on ``basis``.
 
     The second half of that sentence used to be aspirational. This took the two
     newest filings and then checked them, which is right for a 10-K — the one
-    before last is a year back — but wrong for a 10-Q, where the two newest are
-    always consecutive quarters three months apart. Since a quarter is only
-    comparable with the same quarter a year earlier, every default 10-Q run
-    refused itself, and the form was usable only through the manual pair picker.
+    before last is a year back — but wrong for a year-over-year 10-Q, where the
+    two newest are always consecutive quarters three months apart. Every default
+    10-Q run refused itself, and the form was usable only through the manual
+    pair picker.
 
-    The search walks back to the first filing inside the form's comparability
-    window (four filings back, for a quarterly filer). When nothing in the
-    history fits, it falls back to the second-newest so the caller still gets
-    the honest refusal with its reasons rather than an exception.
+    The search walks back to the first filing inside the window for the requested
+    basis — four filings back for a year-over-year quarterly comparison, one for
+    a sequential one. When nothing in the history fits, it falls back to the
+    second-newest so the caller still gets the honest refusal with its reasons
+    rather than an exception.
     """
     filings = list_filings(client, ticker, form, refresh=refresh)
     if len(filings) < 2:
@@ -246,7 +298,7 @@ def select_filing_pair(
 
     later = ordered[0]
     earlier = ordered[1]
-    window = _gap_window(later.form)
+    window = _gap_window(later.form, basis)
     if window:
         low, high = window
         for candidate in ordered[1:]:
@@ -254,10 +306,35 @@ def select_filing_pair(
                 earlier = candidate
                 break
 
-    ok, notes = check_comparability(earlier, later)
-    return FilingPair(earlier=earlier, later=later, comparability_ok=ok, comparability_notes=notes)
+    return build_pair(earlier, later, basis)
 
 
-def build_pair(earlier: Filing, later: Filing) -> FilingPair:
-    ok, notes = check_comparability(earlier, later)
-    return FilingPair(earlier=earlier, later=later, comparability_ok=ok, comparability_notes=notes)
+def comparable_earlier_filing(
+    later: Filing, options: Sequence[Filing], basis: ComparisonBasis = "year_over_year"
+) -> Filing | None:
+    """The most recent of ``options`` that is comparable with ``later``.
+
+    Shared with the manual pair picker so its pre-selection cannot offer a pair
+    the guardrail then refuses. The picker used to default to the next filing in
+    the list, which for a year-over-year 10-Q is always the previous quarter —
+    the same self-refusing default that was fixed for the automatic path.
+    """
+    window = _gap_window(later.form, basis)
+    if not window:
+        return None
+    low, high = window
+    for candidate in sorted(options, key=lambda f: f.report_date, reverse=True):
+        if candidate.report_date >= later.report_date:
+            continue
+        if low <= _months_between(candidate.report_date, later.report_date) <= high:
+            return candidate
+    return None
+
+
+def build_pair(
+    earlier: Filing, later: Filing, basis: ComparisonBasis = "year_over_year"
+) -> FilingPair:
+    ok, notes = check_comparability(earlier, later, basis)
+    return FilingPair(
+        earlier=earlier, later=later, basis=basis, comparability_ok=ok, comparability_notes=notes
+    )

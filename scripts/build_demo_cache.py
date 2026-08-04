@@ -26,8 +26,12 @@ from filing_change_analyst.services.demo_cache import DEMO_CACHE_ARCHIVE  # noqa
 
 # MSFT carries three filings so both the live pair and the pinned evaluation
 # pair resolve offline. The rest cover the other section-anchoring strategies.
+#
+# Both forms are bundled per filer. The 10-Q selector is offered in the UI, so a
+# 10-Q that has to be fetched live is a 10-Q that fails on a cold container the
+# first time SEC rate-limits it — the earlier bundle held 10-K documents only.
 BUNDLED_CIKS = {
-    "0000789019": "MSFT — app default, FY2026/FY2025/FY2024",
+    "0000789019": "MSFT — app default, FY2026/FY2025/FY2024 + Q3 10-Qs",
     "0000320193": "AAPL — mixed_case anchoring",
     "0001045810": "NVDA — mixed_case anchoring",
     "0000080424": "PG   — title_only anchoring, low confidence",

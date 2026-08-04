@@ -19,6 +19,7 @@ import difflib
 import logging
 import re
 
+from ..analytics.period_matching import BASIS_PHRASES, SUB_ANNUAL_CLASSES, reported_basis
 from ..formatting import money, ratio_pct
 from ..models import (
     MaterialChange,
@@ -149,6 +150,20 @@ def detect_material_changes(
 ) -> list[MaterialChange]:
     """Rank topics by measured signal and emit deterministic change records."""
     by_id = {c.metric_id: c for c in comparisons}
+    # A 10-Q's MD&A narrates the quarter *and* the cumulative year to date, but
+    # the figures beside it are on exactly one basis. Measured on MSFT Q3 FY2026:
+    # the grid reads cost of revenue +22.4% (the quarter) while the MD&A excerpt
+    # retrieved alongside it says "increased $13.0 billion or 20%" (the nine
+    # months). Both are the filing's own numbers and they are not the same one,
+    # so a change that pairs figures with excerpts has to say which basis is which.
+    basis = reported_basis(comparisons)
+    basis_note = (
+        f"The figures here are {BASIS_PHRASES[basis]}; a 10-Q's MD&A discusses both the "
+        "period and the cumulative year to date, so a number quoted in the excerpts "
+        "below may be on the other basis."
+        if basis in SUB_ANNUAL_CLASSES
+        else ""
+    )
 
     # Pass 1: score every candidate topic so that metric budgets are spent on
     # the strongest signals first.
@@ -188,6 +203,8 @@ def detect_material_changes(
             "10,000 tokens — it is a prominence signal, not a semantic judgement, and filing "
             "formatting differences can affect it."
         ]
+        if basis_note and phrases:
+            caveat_bits.append(basis_note)
 
         if emphasis_strength >= 1.0 and phrases:
             metric_dirs = {_metric_direction(c) for c in usable_metrics[:2]}

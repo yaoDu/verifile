@@ -62,11 +62,25 @@ class Filing(BaseModel):
         return f"{self.form} FY-end {self.report_date.isoformat()} (filed {self.filing_date.isoformat()})"
 
 
+# Which kind of period-over-period comparison a pair is meant to be. The two
+# answer different questions and are not interchangeable: year-over-year holds
+# seasonality constant, sequential does not. Recording the intent on the pair is
+# what lets the guardrail check the right gap and the UI say which one is on
+# screen, rather than inferring either from the dates.
+ComparisonBasis = Literal["year_over_year", "sequential"]
+
+COMPARISON_BASIS_LABELS: dict[str, str] = {
+    "year_over_year": "Year over year",
+    "sequential": "Sequential quarter",
+}
+
+
 class FilingPair(BaseModel):
     """The later ("latest") filing and the earlier comparable filing."""
 
     earlier: Filing
     later: Filing
+    basis: ComparisonBasis = "year_over_year"
     comparability_ok: bool = True
     comparability_notes: list[str] = Field(default_factory=list)
 
@@ -196,6 +210,11 @@ class RestatementFlag(BaseModel):
 # Sections, chunks and evidence
 # --------------------------------------------------------------------------- #
 
+# The semantic slots the retrieval layer keys on. They are deliberately not the
+# item numbers: MD&A is Item 7 in a 10-K and Item 2 in a 10-Q, so one slot has to
+# stand for both or a topic probe would need to know the form. The *label* that
+# goes with a slot is therefore form-dependent and lives on the item outlines in
+# `sec/sections.py` — there is no form-independent label to keep here.
 SectionId = Literal[
     "item_1_business",
     "item_1a_risk_factors",
@@ -204,15 +223,6 @@ SectionId = Literal[
     "item_8_financial_statements",
     "unclassified",
 ]
-
-SECTION_LABELS: dict[str, str] = {
-    "item_1_business": "Item 1 — Business",
-    "item_1a_risk_factors": "Item 1A — Risk Factors",
-    "item_7_mdna": "Item 7 — Management's Discussion and Analysis",
-    "item_7a_market_risk": "Item 7A — Quantitative and Qualitative Disclosures About Market Risk",
-    "item_8_financial_statements": "Item 8 — Financial Statements",
-    "unclassified": "Unclassified",
-}
 
 
 class FilingSection(BaseModel):

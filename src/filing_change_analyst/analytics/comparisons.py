@@ -11,6 +11,8 @@ import logging
 from datetime import date
 
 from ..models import (
+    ComparisonBasis,
+    DurationClass,
     FactProvenance,
     Filing,
     FilingPair,
@@ -21,7 +23,12 @@ from ..models import (
 )
 from ..sec.facts import FactStore
 from .metric_definitions import DISPLAY_ORDER, METRICS_BY_ID, REPORTED_METRICS, MetricDef
-from .period_matching import classify_duration, periods_compatible
+from .period_matching import (
+    YEAR_TO_DATE_CLASSES,
+    classify_duration,
+    default_duration_class,
+    periods_compatible,
+)
 
 log = logging.getLogger(__name__)
 
@@ -75,6 +82,7 @@ def build_reported_metric(
     mdef: MetricDef,
     *,
     period_end: date | None = None,
+    duration_class: DurationClass | None = None,
     require_same_accession: bool = False,
 ) -> tuple[MetricValue, XbrlFact | None, list[str]]:
     """Read one reported metric for one filing period."""
@@ -95,6 +103,7 @@ def build_reported_metric(
                     filing,
                     period_type=mdef.period_type,
                     period_end=target_end,
+                    duration_class=duration_class,
                     require_same_accession=require_same_accession,
                 )
                 warnings.extend(w)
@@ -131,6 +140,7 @@ def build_reported_metric(
             filing,
             period_type=mdef.period_type,
             period_end=target_end,
+            duration_class=duration_class,
             require_same_accession=require_same_accession,
         )
         warnings.extend(w)
@@ -222,9 +232,17 @@ def build_metric_set(
     filing: Filing,
     *,
     period_end: date | None = None,
+    duration_class: DurationClass | None = None,
     require_same_accession: bool = False,
 ) -> tuple[dict[str, MetricValue], dict[str, XbrlFact | None], list[str]]:
-    """All metrics (reported + derived) for one filing period."""
+    """All metrics (reported + derived) for one filing period.
+
+    ``duration_class`` defaults to the form's usual reporting length so a 10-Q
+    reads as the quarter rather than picking arbitrarily between the quarter and
+    the year-to-date fact.
+    """
+    if duration_class is None:
+        duration_class = default_duration_class(filing.form)
     values: dict[str, MetricValue] = {}
     facts: dict[str, XbrlFact | None] = {}
     warnings: list[str] = []
@@ -235,6 +253,7 @@ def build_metric_set(
             filing,
             mdef,
             period_end=period_end,
+            duration_class=duration_class,
             require_same_accession=require_same_accession,
         )
         values[mdef.metric_id] = mv
@@ -274,6 +293,8 @@ def _compat_for(
     later_facts: dict[str, XbrlFact | None],
     earlier_vals: dict[str, MetricValue],
     later_vals: dict[str, MetricValue],
+    basis: ComparisonBasis = "year_over_year",
+    period_class: DurationClass | None = None,
 ) -> tuple[bool, str]:
     """Period compatibility, resolved through derived metrics to their inputs."""
     keys = mdef.derived_from or (mdef.metric_id,)
@@ -288,7 +309,7 @@ def _compat_for(
             if ev.period_type != lv.period_type:
                 return False, f"{key}: period-type mismatch ({ev.period_type} vs {lv.period_type})."
             continue
-        ok, note = periods_compatible(ef, lf)
+        ok, note = periods_compatible(ef, lf, basis=basis, period_class=period_class)
         if not ok:
             return False, f"{key}: {note}"
         notes.append(note)
@@ -361,21 +382,49 @@ def compare_filings(
     pair: FilingPair,
     *,
     metric_ids: tuple[str, ...] = DISPLAY_ORDER,
+    duration_class: DurationClass | None = None,
 ) -> tuple[list[MetricComparison], list[RestatementFlag], list[str]]:
     """Full deterministic comparison for a filing pair.
 
+    ``duration_class`` pins both sides to one reporting length (for a 10-Q,
+    ``"quarterly"`` or ``"three_quarters"`` for year-to-date). ``None`` uses the
+    form default. Both sides always use the same length, so a quarter is never
+    compared against a year-to-date figure.
+
+    The fact-level alignment check reads ``pair.basis``: a sequential pair is one
+    period apart, not one year, and measuring the wrong one blocks every metric.
+
     Returns ``(comparisons, restatement_flags, warnings)``.
     """
-    earlier_vals, earlier_facts, w1 = build_metric_set(store, pair.earlier)
-    later_vals, later_facts, w2 = build_metric_set(store, pair.later)
+    # Resolved once here so the alignment check and the fact selection agree on
+    # the reporting length; a balance-sheet fact has no duration of its own and
+    # this is the only place its expected spacing can come from.
+    period_class = duration_class or default_duration_class(pair.later.form)
+    earlier_vals, earlier_facts, w1 = build_metric_set(
+        store, pair.earlier, duration_class=duration_class
+    )
+    later_vals, later_facts, w2 = build_metric_set(
+        store, pair.later, duration_class=duration_class
+    )
     warnings = list(dict.fromkeys(w1 + w2))
+    if pair.basis == "sequential" and period_class in YEAR_TO_DATE_CLASSES:
+        warnings.insert(
+            0,
+            "A sequential comparison cannot be read on a year-to-date basis: year-to-date "
+            "figures accumulate from the fiscal year start, so consecutive quarters cover "
+            "different lengths (six months, then nine) and are not like-for-like. Every metric "
+            "below is unavailable. Use the quarter basis for a sequential comparison, or "
+            "compare year over year.",
+        )
 
     comparisons: list[MetricComparison] = []
     for mid in metric_ids:
         mdef = METRICS_BY_ID.get(mid)
         if mdef is None:
             continue
-        ok, note = _compat_for(mdef, earlier_facts, later_facts, earlier_vals, later_vals)
+        ok, note = _compat_for(
+            mdef, earlier_facts, later_facts, earlier_vals, later_vals, pair.basis, period_class
+        )
         if not pair.comparability_ok:
             ok = False
             note = "Filing pair failed structural comparability checks. " + " ".join(
@@ -391,7 +440,9 @@ def compare_filings(
             )
         )
 
-    restatements = detect_restatements(store, pair, earlier_vals, metric_ids=metric_ids)
+    restatements = detect_restatements(
+        store, pair, earlier_vals, metric_ids=metric_ids, duration_class=duration_class
+    )
     return comparisons, restatements, warnings
 
 
@@ -401,6 +452,7 @@ def detect_restatements(
     earlier_vals: dict[str, MetricValue],
     *,
     metric_ids: tuple[str, ...] = DISPLAY_ORDER,
+    duration_class: DurationClass | None = None,
 ) -> list[RestatementFlag]:
     """Compare the prior year *as first reported* with the prior year *as shown in
     the newer filing*.
@@ -410,7 +462,11 @@ def detect_restatements(
     """
     flags: list[RestatementFlag] = []
     restated_vals, _, _ = build_metric_set(
-        store, pair.later, period_end=pair.earlier.report_date, require_same_accession=True
+        store,
+        pair.later,
+        period_end=pair.earlier.report_date,
+        duration_class=duration_class,
+        require_same_accession=True,
     )
     for mid in metric_ids:
         mdef = METRICS_BY_ID.get(mid)

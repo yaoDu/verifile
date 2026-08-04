@@ -52,6 +52,7 @@ from filing_change_analyst.research.brief import brief_filename, build_markdown_
 from filing_change_analyst.research.change_detection import risk_change_summary  # noqa: E402
 from filing_change_analyst.research.qa import SUGGESTED_QUESTIONS, answer_question  # noqa: E402
 from filing_change_analyst.sec.client import SecError  # noqa: E402
+from filing_change_analyst.sec.filings import comparable_earlier_filing  # noqa: E402
 from filing_change_analyst.services.cache import DiskCache  # noqa: E402
 from filing_change_analyst.services.demo_cache import seed_demo_cache  # noqa: E402
 from filing_change_analyst.services.llm import LlmClient  # noqa: E402
@@ -113,6 +114,50 @@ with st.container(border=True):
             help="Deterministic analysis always runs first; the model only interprets it.",
         )
         refresh = st.toggle("Bypass cache (re-download from SEC)", value=False)
+        # Two independent choices, both meaningless for a 10-K and so hidden for
+        # it: which two filings to pair, and which figure to read within each.
+        duration_class: str | None = None
+        comparison_basis = "year_over_year"
+        if form == "10-Q":
+            paired = st.radio(
+                "Compare against",
+                ("Same quarter last year", "Previous quarter"),
+                index=0,
+                help=(
+                    "Year over year holds seasonality constant and is the standard "
+                    "read. Sequential shows the immediately preceding quarter, which "
+                    "is more current but mixes seasonality into every move."
+                ),
+            )
+            comparison_basis = (
+                "year_over_year" if paired.startswith("Same") else "sequential"
+            )
+            # A 10-Q tags the quarter *and* the year-to-date figure against the
+            # same period end, so the length has to be chosen rather than
+            # inferred from the end date. Year to date is only offered against
+            # the same quarter last year: it accumulates from the fiscal year
+            # start, so consecutive quarters cover six months and then nine and
+            # have nothing like-for-like to compare.
+            sequential = comparison_basis == "sequential"
+            length = st.radio(
+                "10-Q reporting basis",
+                ("Quarter (3 months)", "Year to date"),
+                index=0,
+                disabled=sequential,
+                help=(
+                    "A 10-Q reports both. The quarter isolates the period; year to "
+                    "date is cumulative from the fiscal year start and smooths "
+                    "seasonality. Both sides of the comparison always use the same basis."
+                ),
+            )
+            if sequential:
+                st.caption(
+                    "Year to date is unavailable against the previous quarter — it accumulates "
+                    "from the fiscal year start, so consecutive quarters are not like-for-like."
+                )
+            duration_class = (
+                "quarterly" if sequential or length.startswith("Quarter") else "three_quarters"
+            )
 
     with b_pair, st.popover("Filing pair", width="stretch"):
         st.caption(
@@ -127,13 +172,20 @@ with st.container(border=True):
         options = st.session_state.get("filing_options") or []
         if options:
             labels = {f.label: f for f in options}
-            later_label = st.selectbox("Latest filing", list(labels), index=0)
-            earlier_label = st.selectbox(
-                "Earlier filing", list(labels), index=min(1, len(labels) - 1)
+            names = list(labels)
+            later_label = st.selectbox("Latest filing", names, index=0)
+            # Default to a filing the guardrail will actually accept. Offering
+            # the next one in the list pre-selected a pair that is always three
+            # months apart, so opening this popover on a year-over-year 10-Q and
+            # pressing Compare produced a guaranteed refusal.
+            match = comparable_earlier_filing(
+                labels[later_label], options, comparison_basis
             )
+            default = names.index(match.label) if match else min(1, len(names) - 1)
+            earlier_label = st.selectbox("Earlier filing", names, index=default)
             if st.button("Compare this pair", width="stretch"):
                 st.session_state["custom_pair"] = pair_from_filings(
-                    labels[earlier_label], labels[later_label]
+                    labels[earlier_label], labels[later_label], comparison_basis
                 )
                 compare = True
 
@@ -172,6 +224,8 @@ if compare:
             pair=st.session_state.pop("custom_pair", None),
             progress=progress,
             refresh=refresh,
+            duration_class=duration_class,
+            basis=comparison_basis,
         )
         if use_ai and settings.llm_available:
             bundle = apply_ai_synthesis(bundle, client=LlmClient(), progress=progress)

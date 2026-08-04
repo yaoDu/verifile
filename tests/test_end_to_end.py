@@ -186,7 +186,10 @@ def test_incompatible_pair_is_flagged_end_to_end(fake_client, fy2023, fy2025):
     )
     r = bundle.result
     assert not r.pair.comparability_ok
-    assert any("months apart" in w for w in r.warnings)
+    assert any("months apart" in n for n in r.pair.comparability_notes)
+    # The notes live on the pair only. Copying them into `warnings` as well made
+    # every surface print each one twice, because both read from their own list.
+    assert not any("months apart" in w for w in r.warnings)
     assert all(
         c.status == "incompatible_periods"
         for c in r.comparisons
@@ -194,6 +197,7 @@ def test_incompatible_pair_is_flagged_end_to_end(fake_client, fy2023, fy2025):
     )
     md = build_markdown_brief(r)
     assert "Period comparability failed" in md
+    assert md.count("Annual periods are 24 months apart") == 1
 
 
 def test_analysis_is_reproducible(fake_client):

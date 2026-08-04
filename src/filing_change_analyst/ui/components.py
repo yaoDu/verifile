@@ -24,6 +24,7 @@ import html
 import pandas as pd
 import streamlit as st
 
+from ..analytics.period_matching import BASIS_LABELS, reported_basis
 from ..formatting import (
     absolute_change_text,
     change_text,
@@ -33,6 +34,7 @@ from ..formatting import (
     status_text,
 )
 from ..models import (
+    COMPARISON_BASIS_LABELS,
     AnalysisResult,
     EvidenceChunk,
     MaterialChange,
@@ -40,6 +42,7 @@ from ..models import (
     RetrievedEvidence,
     RiskFactorDelta,
 )
+from ..sec.filings import supported_bases
 from . import theme
 
 # Text only. Emoji render as full-colour glyphs that sit outside the palette and
@@ -256,6 +259,15 @@ def _extraction_confidence(result: AnalysisResult) -> str | None:
     return min(levels, key=lambda level: ranked.get(level, 0))
 
 
+def _reporting_basis(result: AnalysisResult) -> str | None:
+    """The reporting length the displayed figures actually use.
+
+    A 10-Q reports the quarter and the year-to-date figure against the same
+    period end, so without this the reader cannot tell which one is on screen.
+    """
+    return BASIS_LABELS.get(reported_basis(result.comparisons) or "")
+
+
 def filing_context_bar(result: AnalysisResult) -> None:
     """Both filings' identity in one horizontal band.
 
@@ -290,10 +302,28 @@ def filing_context_bar(result: AnalysisResult) -> None:
         )
 
     months = round((l.report_date - e.report_date).days / 30.44)
+    length = _reporting_basis(result)
+    length_chip = (
+        f'<span class="fca-cmp-gap" title="Reporting length of every figure below; '
+        f'both periods use the same basis">{_E(length)}</span>'
+        if length
+        else ""
+    )
+    # Which two filings were paired, as distinct from the length of each period.
+    # Named only when the form offers a choice, so a 10-K is not labelled with a
+    # decision it never had.
+    comparison_chip = (
+        f'<span class="fca-cmp-gap" title="Which two periods are paired">'
+        f"{_E(COMPARISON_BASIS_LABELS[pair.basis])}</span>"
+        if len(supported_bases(l.form)) > 1
+        else ""
+    )
     theme.render(
         f'<div class="fca-cmp">'
         f'<div class="fca-cmp-head">'
         f'<span class="fca-cmp-form">{_E(l.form)}</span>'
+        f"{comparison_chip}"
+        f"{length_chip}"
         f'<span class="fca-cmp-gap">{months} months apart</span>'
         f"</div>"
         f'<div class="fca-cmp-body">'

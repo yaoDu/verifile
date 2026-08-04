@@ -13,7 +13,12 @@ analyst can see exactly why a number was chosen):
 4. Otherwise the metric is reported as missing. Nothing is interpolated.
 
 Duplicates are deduped on (concept, unit, start, end, value); genuine conflicts
-(same period, different value, same accession) are surfaced as warnings.
+(same period, *same duration*, different value) are surfaced as warnings.
+
+Note on duration: a period end date alone does not identify a period. A 10-Q
+tags the quarter and the year-to-date figure with the same end date, so callers
+must say which duration they want via ``duration_class``; otherwise the two are
+indistinguishable and the choice between them would be arbitrary.
 """
 
 from __future__ import annotations
@@ -23,7 +28,8 @@ from collections.abc import Iterable
 from datetime import date, datetime
 from typing import Any
 
-from ..models import Filing, XbrlFact
+from ..analytics.period_matching import classify_duration
+from ..models import DurationClass, Filing, XbrlFact
 
 log = logging.getLogger(__name__)
 
@@ -117,14 +123,32 @@ class FactStore:
         *,
         period_type: str = "duration",
         period_end: date | None = None,
+        duration_class: DurationClass | None = None,
         require_same_accession: bool = False,
     ) -> tuple[XbrlFact | None, str, list[str]]:
-        """Select one fact. Returns ``(fact, selection_rule, warnings)``."""
+        """Select one fact. Returns ``(fact, selection_rule, warnings)``.
+
+        ``duration_class`` restricts duration facts to one reporting length
+        (e.g. ``"quarterly"``). Without it a 10-Q's quarter and year-to-date
+        facts both match the same period end and the pick between them is
+        arbitrary.
+        """
         target_end = period_end or filing.report_date
         warnings: list[str] = []
         candidates = [f for f in self.facts_for(concept) if f.period_type == period_type]
+        if duration_class is not None and period_type == "duration":
+            matching = [f for f in candidates if classify_duration(f.duration_days) == duration_class]
+            if not matching and candidates:
+                available = sorted({classify_duration(f.duration_days) for f in candidates})
+                warnings.append(
+                    f"{concept}: no {duration_class} fact for period ending {target_end}; "
+                    f"only {', '.join(available)} durations are tagged. Metric omitted rather "
+                    "than substituted with a different reporting length."
+                )
+                return None, "", warnings
+            candidates = matching
         if not candidates:
-            return None, "", []
+            return None, "", warnings
 
         same_accn = [f for f in candidates if f.accession == filing.accession]
 
@@ -169,14 +193,32 @@ class FactStore:
     def _disambiguate(
         facts: list[XbrlFact], concept: str, target_end: date
     ) -> tuple[XbrlFact | None, list[str]]:
+        """Pick one fact from same-period candidates, warning only on real conflicts.
+
+        Callers filter by duration first, so anything still competing here has
+        the same concept, end and reporting length -- a genuine disagreement.
+        """
         if not facts:
             return None, []
         values = {round(f.value, 6) for f in facts}
         warnings: list[str] = []
         if len(values) > 1:
-            warnings.append(
-                f"{concept}: {len(values)} conflicting values tagged for period ending "
-                f"{target_end} ({sorted(values)}); used the most recently filed."
+            # Most recently filed wins; accession breaks a same-day tie so the
+            # result never depends on parse order.
+            facts = sorted(
+                facts, key=lambda f: (f.filed or date.min, f.accession or ""), reverse=True
             )
-            facts = sorted(facts, key=lambda f: (f.filed or date.min), reverse=True)
+            chosen = facts[0]
+            newest = {f.filed for f in facts}
+            basis = (
+                f"used the most recently filed ({chosen.filed})"
+                if len(newest) > 1
+                else f"all filed {chosen.filed}, so there is no newer value to prefer; "
+                f"used accession {chosen.accession}"
+            )
+            warnings.append(
+                f"{concept}: {len(values)} conflicting values tagged for the same "
+                f"{classify_duration(chosen.duration_days)} period ending {target_end} "
+                f"({sorted(values)}); {basis}."
+            )
         return facts[0], warnings

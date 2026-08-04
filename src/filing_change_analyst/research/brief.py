@@ -309,6 +309,13 @@ def build_markdown_brief(result: AnalysisResult) -> str:
         )
     for line in standing:
         out.append(f"- **[{LABELS['caveat']}]** {line}")
+    # A pair can pass the comparability check and still carry a note — a
+    # sequential comparison is valid but not seasonally adjusted. A failed pair
+    # already prints its notes in the blocking block above, so only the passing
+    # case is emitted here and nothing is said twice.
+    if pair.comparability_ok:
+        for n in pair.comparability_notes:
+            out.append(f"- **[{LABELS['caveat']}]** {n}")
     if extras and extras.caveats:
         for line in extras.caveats:
             out.append(f"- **[{LABELS['caveat']}]** {line}")

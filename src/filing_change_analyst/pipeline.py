@@ -13,7 +13,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from .analytics.comparisons import compare_filings
-from .models import AnalysisResult, Filing, FilingPair
+from .models import AnalysisResult, ComparisonBasis, DurationClass, Filing, FilingPair
 from .research.change_detection import detect_material_changes, diff_risk_headings
 from .retrieval.chunking import chunk_filing
 from .retrieval.index import Bm25Index
@@ -52,8 +52,20 @@ def run_analysis(
     pair: FilingPair | None = None,
     progress: ProgressFn = _noop,
     refresh: bool = False,
+    duration_class: DurationClass | None = None,
+    basis: ComparisonBasis = "year_over_year",
 ) -> AnalysisBundle:
-    """Run the deterministic pipeline end to end."""
+    """Run the deterministic pipeline end to end.
+
+    ``duration_class`` pins which reporting length the metrics use. ``None``
+    takes the form default (10-K annual, 10-Q quarterly); pass
+    ``"three_quarters"`` for a 10-Q read on a year-to-date basis.
+
+    ``basis`` says which comparison to build: the same quarter a year earlier
+    (default) or the immediately preceding one. It is orthogonal to
+    ``duration_class`` — the first picks *which two filings*, the second picks
+    *which figure within each*.
+    """
     started = time.perf_counter()
     owns_client = client is None
     client = client or SecClient()
@@ -62,18 +74,20 @@ def run_analysis(
 
     try:
         if pair is None:
-            progress(f"Selecting the two most recent {form} filings for {ticker.upper()}…")
-            pair = select_filing_pair(client, ticker, form, refresh=refresh)
-        if not pair.comparability_ok:
-            warnings.extend(pair.comparability_notes)
-        else:
-            data_notes.extend(pair.comparability_notes)
+            progress(f"Selecting the two most recent comparable {form} filings for {ticker.upper()}…")
+            pair = select_filing_pair(client, ticker, form, refresh=refresh, basis=basis)
+        # Comparability notes deliberately stay on the pair rather than being
+        # copied into `warnings`. Every surface that shows them — the context
+        # bar, the brief's blocking block — reads them from the pair, so copying
+        # them here printed each note twice.
 
         progress("Loading structured XBRL facts from SEC…")
         store = FactStore(client.company_facts(pair.later.cik, refresh=refresh))
 
         progress("Calculating period-over-period changes in Python…")
-        comparisons, restatements, calc_warnings = compare_filings(store, pair)
+        comparisons, restatements, calc_warnings = compare_filings(
+            store, pair, duration_class=duration_class
+        )
         warnings.extend(calc_warnings)
 
         sections: dict[str, dict] = {}
@@ -98,7 +112,10 @@ def run_analysis(
                 risk_meta[period] = ([], "low", 0)
                 continue
 
-            secs, notes, strategy = extract_sections(raw)
+            # The form decides which items exist at all: MD&A is Item 7 in a
+            # 10-K and Item 2 in a 10-Q. Reading one through the other's outline
+            # silently loses sections rather than failing.
+            secs, notes, strategy = extract_sections(raw, filing.form)
             sections[period] = secs
             section_strategy[period] = strategy
             if strategy == "none":
@@ -115,7 +132,7 @@ def run_analysis(
                     f"(extraction confidence {section_confidence(strategy)})."
                 )
             data_notes.extend(f"{period} filing: {n}" for n in notes)
-            headings, confidence = extract_risk_headings(raw, strategy)
+            headings, confidence = extract_risk_headings(raw, strategy, filing.form)
             risk_chars = secs["item_1a_risk_factors"].char_count if "item_1a_risk_factors" in secs else 0
             risk_meta[period] = (headings, confidence, risk_chars)
             chunks.extend(chunk_filing(secs, filing, period, headings=headings))  # type: ignore[arg-type]
@@ -228,5 +245,7 @@ def available_filings(
             client.close()
 
 
-def pair_from_filings(earlier: Filing, later: Filing) -> FilingPair:
-    return build_pair(earlier, later)
+def pair_from_filings(
+    earlier: Filing, later: Filing, basis: ComparisonBasis = "year_over_year"
+) -> FilingPair:
+    return build_pair(earlier, later, basis)

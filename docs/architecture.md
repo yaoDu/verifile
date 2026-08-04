@@ -71,28 +71,72 @@ flowchart TD
 collected newest-first; where an original and an amendment cover the same report date the original wins,
 and the amendment is flagged. `check_comparability` then runs **before any numbers are touched**:
 
+A 10-Q supports two comparisons that answer different questions, so the pair records which one it is
+meant to be (`FilingPair.basis`) rather than inferring it from the gap:
+
+| Basis | Pairs | Holds seasonality constant |
+|---|---|---|
+| `year_over_year` (default) | the same quarter a year earlier | yes |
+| `sequential` | the immediately preceding quarter | no — every figure carries a caveat saying so |
+
+A 10-K has only `year_over_year`, so the control is hidden for it. The checks are then:
+
 * form base must match (a 10-K never meets a 10-Q),
 * the later period must actually be later,
-* annual pairs must be 10–14 months apart; quarterly pairs exactly 12,
-* differing period-end months raise a fiscal-calendar note,
+* the gap must match the basis: annual 10–14 months, quarterly exactly 12 year-over-year or 2–4
+  sequential — and a refusal names the basis that *would* accept the pair,
+* period-end months that differ raise a fiscal-calendar note, but only within two months of the
+  year-over-year window; outside it the pair is simply the wrong one and the gap note already says so,
 * an amendment on either side raises a note.
 
 A failed check sets `comparability_ok = False`, which suppresses every metric comparison downstream and
-puts a blocking banner in both the UI and the brief.
+puts a blocking banner in both the UI and the brief. Notes live on the pair and nowhere else — copying
+them into `AnalysisResult.warnings` as well made every surface print each one twice.
+
+The same basis reaches the *fact-level* check (`periods_compatible`), because "aligned" means different
+things for the two: a Dec-to-Mar quarterly pair is ~275 days from being a year apart and exactly one
+period apart. Measuring the wrong one blocked all 21 metrics on a pair the structural check had just
+accepted. Balance-sheet facts state a date but no duration, so their expected spacing comes from the
+comparison's reporting length; without it every instant metric dropped out of a sequential run.
+
+Sequential year-to-date is refused outright: year-to-date accumulates from the fiscal year start, so
+consecutive quarters cover six months and then nine and have nothing like-for-like to compare. The UI
+disables the choice and the pipeline explains it rather than returning an empty grid.
 
 ### 2. Fact selection
 
 `companyfacts/CIK##########.json` carries, for every fact, the accession number of the filing that
 reported it. That is what makes provenance auditable, and it is why this client is hand-rolled.
 
-Selection rules, applied in order and recorded on the result:
+Candidates are first narrowed to one **reporting length**. A period end date does not identify a
+period on its own: a 10-Q tags the quarter *and* the year-to-date figure against the same end date, so
+selecting on the end alone makes the two look like conflicting values for one period and the pick
+between them falls out of parse order. `duration_class` (from `classify_duration`) resolves this.
+It defaults to the form's usual length — `10-K` → `annual`, `10-Q` → `quarterly` — and the UI exposes
+a Quarter / Year-to-date toggle for 10-Qs. If the requested length is not tagged, the metric is `N/A`;
+a different length is never substituted.
+
+Selection rules are then applied in order and recorded on the result:
 
 1. `filing_scoped_exact_period` — same accession, period end equal to the filing's report date.
 2. `filing_scoped_near_period` — same accession, period end within 10 days (52/53-week calendars).
 3. `cross_filing_original_report` — earliest-filed fact for the period, i.e. as first published.
 4. Otherwise the metric is `N/A` with the list of concepts tried.
 
-Conflicting values for the same period raise a warning and the most recently filed wins.
+Values that still disagree — same concept, same end, *same length* — raise a warning. The most recently
+filed wins; when they share a filing date the warning says so rather than claiming a newer value
+exists, and accession breaks the tie so the result never depends on parse order.
+
+Both sides of a comparison always use the same length, and the basis is shown as a chip above the
+figures so a year-to-date reading is never mistaken for a quarterly one. The chip is read back off the
+facts that were selected, not off the requested setting, so it cannot claim a basis the numbers do not
+have (`reported_basis`, in `analytics/period_matching.py`).
+
+The basis also has to be stated where figures sit next to filing text, because a 10-Q's MD&A narrates
+the quarter *and* the cumulative year to date while the grid shows one of them. On MSFT Q3 FY2026 the
+grid reads cost of revenue +22.4% (the quarter) while the MD&A paragraph retrieved beside it says
+"increased $13.0 billion or 20%" (the nine months). Both are the filing's own numbers, so any change
+that pairs figures with excerpts carries a caveat naming which basis the figures are on.
 
 Because selection is filing-scoped, the year-over-year comparison is the one an analyst would read off
 the two documents. `detect_restatements` then re-reads the prior period *as re-tagged in the newer
@@ -118,14 +162,30 @@ instead of printing a meaningless number.
 Filing HTML is flattened to text with scripts, styles and markup discarded — filing content is untrusted
 input and is never re-rendered as markup. Running page headers and page numbers are stripped.
 
-Section anchoring exploits a property of real filings: filers render the actual item headings in **upper
-case** (`ITEM 1A. RISK FACTORS`) while the table of contents and running headers use title case
-(`Item 1A.`). Matching only upper-case anchors removes almost all table-of-contents false positives.
-Where it fails the system reports low extraction confidence rather than guessing.
+Two things vary independently and are handled separately: **which items exist** (the form) and **how the
+heading is marked up** (the filer).
 
-Risk-factor headings come from bold/`font-weight:700` runs of 35–320 characters located inside the Item 1A
-span — the structure filers actually mark up, and far more reliable than inferring topic boundaries from
-prose.
+**Which items exist.** Each form has its own outline in `sec/sections.py`, listing its items in document
+order. The schemes are unrelated: MD&A is Item 7 in a 10-K and Item 2 in a 10-Q, a 10-Q's Item 1 is the
+financial statements rather than the business description, and a 10-Q restarts numbering at Part II so
+`Item 1` and `Item 2` each occur twice in one document. Anchors are therefore matched against the
+outline *as a sequence* rather than looked up by item number — the second `Item 1` can only be Part II's,
+because Part I's has already been claimed. Each outline entry carries the semantic `section_id` the
+retrieval layer keys on (shared across forms, so one topic probe finds MD&A in either) and a
+form-correct label, which is what every citation prints.
+
+**How the heading is marked up.** Filers render the actual item headings in **upper case**
+(`ITEM 1A. RISK FACTORS`) while the table of contents and running headers use title case (`Item 1A.`).
+Matching only upper-case anchors removes almost all table-of-contents false positives; title-case and
+bare-title fallbacks follow, each less precise than the last. A strategy is accepted only once it has
+produced the form's load-bearing section in substance — Business, Risk Factors and MD&A for a 10-K, MD&A
+alone for a 10-Q, since a 10-Q has no business description and its Item 1A is routinely one sentence
+pointing back at the 10-K. Where every strategy fails the system reports low extraction confidence
+rather than guessing.
+
+Risk-factor headings come from bold/`font-weight:700` runs of 35–320 characters located inside the risk
+span the same strategy and outline located — the structure filers actually mark up, and far more
+reliable than inferring topic boundaries from prose.
 
 ### 6. Retrieval
 
