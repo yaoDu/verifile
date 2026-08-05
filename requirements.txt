@@ -13,5 +13,11 @@ lxml>=5.2
 # keys in .streamlit/config.toml, none of which exist in the 1.36 this file
 # previously allowed — a resolver picking an older wheel would crash on boot.
 streamlit>=1.60
+# Transitive, via streamlit, but bounded here because streamlit does not bound
+# it itself. Starlette 1.4.0 added a required keyword-only `thread_minimum_size`
+# to GZipResponder.__init__; streamlit 1.61's _MediaAwareGZipResponder subclasses
+# it and calls super().__init__ without that argument, so every request — health
+# checks included — 500s before app.py is imported.
+starlette<1.4
 # Messages API client. Also used against DeepSeek, which is compatible.
 anthropic>=0.40

@@ -14,6 +14,7 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "lxml>=5.2",
     "streamlit>=1.60",  # segmented_control, popover, width="stretch", newer theme keys
+    "starlette<1.4",  # 1.4 broke streamlit's GZip middleware subclass; see requirements.txt
     "anthropic>=0.40",  # Messages API client; also used against DeepSeek
 ]
 
